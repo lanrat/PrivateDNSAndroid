@@ -13,6 +13,7 @@ import android.os.Bundle
 import android.util.Log
 import android.view.Menu
 import android.view.View
+import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
@@ -27,6 +28,10 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.platform.ComposeView
 import androidx.core.app.ShareCompat
 import androidx.core.net.toUri
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updateLayoutParams
+import androidx.core.view.updatePadding
 import androidx.lifecycle.viewModelScope
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.ItemTouchHelper.DOWN
@@ -47,6 +52,7 @@ import ru.karasevm.privatednstoggle.util.BackupUtils
 import ru.karasevm.privatednstoggle.util.PreferenceHelper
 import ru.karasevm.privatednstoggle.util.PreferenceHelper.dns_servers
 import ru.karasevm.privatednstoggle.util.ShizukuUtil.grantPermissionWithShizuku
+import kotlin.math.roundToInt
 
 
 class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogListener,
@@ -299,8 +305,26 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
                     startActivity(intent)
                     true
                 }
+
                 else -> true
             }
+        }
+
+        // Handle edge-to-edge layout
+        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, insets ->
+            val fabMargin = (16 * resources.displayMetrics.density).roundToInt()
+            val fabClearance = (56 * resources.displayMetrics.density).roundToInt() + fabMargin * 2
+
+            val bars = insets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+            )
+            v.updatePadding(left = bars.left, right = bars.right)
+            binding.topAppBarLayout.updatePadding(top = bars.top)
+            binding.floatingActionButton.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+                bottomMargin = fabMargin + bars.bottom
+            }
+            binding.recyclerView.updatePadding(bottom = fabClearance + bars.bottom)
+            WindowInsetsCompat.CONSUMED
         }
     }
 
@@ -383,6 +407,7 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
                 window?.setBackgroundDrawableResource(android.R.color.transparent)
             }
     }
+
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.menu_main, menu)
         return true
