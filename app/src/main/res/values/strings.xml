@@ -1,5 +1,7 @@
 <resources>
     <string name="app_name">Private DNS Quick Toggle</string>
+    <!-- Short name shown under the launcher icon, where the full app name gets cut off -->
+    <string name="launcher_name">Private DNS</string>
     <string name="tile_name">Private DNS Toggle</string>
     <string name="permission_missing">Permission not granted, check app to see how to do it</string>
     <string name="dns_off">Off</string>

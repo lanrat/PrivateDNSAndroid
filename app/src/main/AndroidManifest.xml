@@ -28,6 +28,7 @@
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"
+            android:label="@string/launcher_name"
             android:launchMode="singleInstance"
             android:taskAffinity="${applicationId}.main"
             android:theme="@style/Theme.MyApplication">
