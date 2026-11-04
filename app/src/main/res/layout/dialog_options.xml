@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Scrollable, the options don't fit on small screens or in landscape -->
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content">
 
@@ -92,26 +93,26 @@
         android:text="@string/auto_revert_setting"
         android:textSize="16sp" />
 
-    <com.google.android.material.textfield.TextInputLayout
-        android:id="@+id/autoRevertMinutesLayout"
-        style="?attr/textInputOutlinedStyle"
-        android:layout_width="match_parent"
+    <TextView
+        android:id="@+id/autoRevertDelayLabel"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="24dp"
         android:layout_marginTop="4dp"
         android:layout_marginEnd="24dp"
+        android:text="@string/auto_revert_delay_label"
+        android:textSize="14sp" />
+
+    <!-- One chip per AutoRevert.PRESET_MINUTES, added in code -->
+    <com.google.android.material.chip.ChipGroup
+        android:id="@+id/autoRevertDelayGroup"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="24dp"
+        android:layout_marginEnd="24dp"
         android:layout_marginBottom="8dp"
-        android:hint="@string/auto_revert_minutes_hint">
-
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/autoRevertMinutes"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:importantForAutofill="no"
-            android:inputType="number"
-            android:maxLength="4" />
-
-    </com.google.android.material.textfield.TextInputLayout>
+        app:selectionRequired="true"
+        app:singleSelection="true" />
 
 </LinearLayout>
 

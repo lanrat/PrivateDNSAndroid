@@ -4,6 +4,7 @@ import android.app.Dialog
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
@@ -52,8 +53,12 @@ class DNSServerDialogFragment : DialogFragment() {
                     if (servers.isEmpty()) {
                         servers.add(DnsServer(0, "dns.google"))
                     }
-                    servers.add(0, DnsServer(-1, resources.getString(R.string.dns_auto)))
-                    servers.add(0, DnsServer(-2, resources.getString(R.string.dns_off)))
+                    servers.add(0, DnsServer(AUTO_ID, resources.getString(R.string.dns_auto)))
+                    // "Off for…" needs a server to switch back to
+                    if (AutoRevert.switchBackTarget(requireContext()) != null) {
+                        servers.add(0, DnsServer(OFF_FOR_ID, resources.getString(R.string.dns_off_for)))
+                    }
+                    servers.add(0, DnsServer(OFF_ID, resources.getString(R.string.dns_off)))
                     adapter.submitList(servers)
                 }
             }
@@ -78,7 +83,11 @@ class DNSServerDialogFragment : DialogFragment() {
             dismiss()
             return
         }
-        adapter.onItemClick = { id ->
+        adapter.onItemClick = onItemClick@{ id ->
+            if (id == OFF_FOR_ID) {
+                showOffForPicker()
+                return@onItemClick
+            }
             val server = servers.find { server -> server.id == id }
             val next = when (id) {
                 OFF_ID -> DnsSetting(PrivateDNSUtils.DNS_MODE_OFF, null)
@@ -103,7 +112,27 @@ class DNSServerDialogFragment : DialogFragment() {
 
     }
 
+    private var offForDialog: AlertDialog? = null
+
+    /**
+     * Asks how long to turn Private DNS off for, then does it and closes the picker.
+     */
+    private fun showOffForPicker() {
+        val presets = AutoRevert.PRESET_MINUTES
+        offForDialog = MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.off_for_title)
+            .setItems(presets.map { AutoRevert.formatDuration(it) }.toTypedArray()) { _, which ->
+                AutoRevert.turnOffFor(requireContext(), presets[which])
+                dismiss()
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
     override fun onDestroy() {
+        // Not restored after a configuration change, the user can pick it again
+        offForDialog?.dismiss()
+        offForDialog = null
         super.onDestroy()
         // On a configuration change the activity restores this dialog instead
         if (activity?.isChangingConfigurations != true) activity?.finish()
@@ -113,5 +142,6 @@ class DNSServerDialogFragment : DialogFragment() {
         const val TAG = "DNSServerDialogFragment"
         private const val AUTO_ID = -1
         private const val OFF_ID = -2
+        private const val OFF_FOR_ID = -3
     }
 }

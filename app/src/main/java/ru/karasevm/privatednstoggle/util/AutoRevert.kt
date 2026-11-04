@@ -5,6 +5,9 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.icu.text.MeasureFormat
+import android.icu.util.Measure
+import android.icu.util.MeasureUnit
 import android.os.Handler
 import android.os.Looper
 import android.text.format.DateFormat
@@ -17,6 +20,7 @@ import ru.karasevm.privatednstoggle.service.AutoRevertReceiver
 import ru.karasevm.privatednstoggle.util.PreferenceHelper.autoRevertEnabled
 import ru.karasevm.privatednstoggle.util.PreferenceHelper.autoRevertMinutes
 import java.util.Date
+import java.util.Locale
 
 /**
  * Turns Private DNS back on a while after the user turned it off or to auto (upstream #59).
@@ -36,8 +40,8 @@ import java.util.Date
 object AutoRevert {
     private const val TAG = "AutoRevert"
 
-    const val MIN_MINUTES = 1
-    const val MAX_MINUTES = 1440
+    /** Delays the user can choose from, in minutes */
+    val PRESET_MINUTES = listOf(5, 15, 30, 60, 360, 1440)
     const val DEFAULT_MINUTES = 5
 
     /** Requested delivery window. Android 12+ stretches windows below 10 minutes. */
@@ -127,9 +131,54 @@ object AutoRevert {
         }
     }
 
+    /**
+     * Turns Private DNS off now and back on after [minutes], whether or not the automatic
+     * switch-back is enabled. Used by "Off for…" in the server picker.
+     *
+     * @return false if there is no server to switch back to
+     */
+    fun turnOffFor(context: Context, minutes: Int): Boolean {
+        val at = synchronized(lock) {
+            val contentResolver = context.contentResolver
+            val provider = switchBackTarget(context) ?: return false
+            PrivateDNSUtils.applyDnsSetting(
+                contentResolver,
+                DnsSetting(PrivateDNSUtils.DNS_MODE_OFF, provider)
+            )
+            schedule(context, provider, minutes)
+        }
+        showToast(
+            context,
+            context.getString(R.string.auto_revert_scheduled_toast, formatTime(context, at))
+        )
+        return true
+    }
+
+    /**
+     * Gets the server [turnOffFor] would switch back to: the current Private DNS hostname,
+     * which Android keeps while the mode is off or auto. Null if there is none.
+     */
+    fun switchBackTarget(context: Context): String? =
+        PrivateDNSUtils.getPrivateProvider(context.contentResolver)?.ifBlank { null }
+
+    /**
+     * Formats a delay for display, e.g. "30 min" or "6 hr", using the platform's translations.
+     */
+    fun formatDuration(minutes: Int, locale: Locale = Locale.getDefault()): String {
+        val measure = if (minutes % 60 == 0) {
+            Measure(minutes / 60, MeasureUnit.HOUR)
+        } else {
+            Measure(minutes, MeasureUnit.MINUTE)
+        }
+        return MeasureFormat.getInstance(locale, MeasureFormat.FormatWidth.SHORT).format(measure)
+    }
+
     /** Stores and arms a switch-back to [provider], returns its deadline. Call under [lock]. */
-    private fun schedule(context: Context, provider: String): Long {
-        val minutes = PreferenceHelper.defaultPreference(context).autoRevertMinutes
+    private fun schedule(
+        context: Context,
+        provider: String,
+        minutes: Int = PreferenceHelper.defaultPreference(context).autoRevertMinutes
+    ): Long {
         val at = System.currentTimeMillis() + minutes * 60_000L
         state(context).edit {
             putLong(KEY_AT, at)

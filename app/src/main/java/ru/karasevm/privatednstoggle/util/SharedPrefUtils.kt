@@ -77,13 +77,14 @@ object PreferenceHelper {
             }
         }
 
-    /** Minutes to wait before switching back */
+    /** Minutes to wait before switching back, one of [AutoRevert.PRESET_MINUTES] */
     var SharedPreferences.autoRevertMinutes
         get() = getInt(AUTO_REVERT_MINUTES, AutoRevert.DEFAULT_MINUTES)
-            .coerceIn(AutoRevert.MIN_MINUTES, AutoRevert.MAX_MINUTES)
+            .takeIf { it in AutoRevert.PRESET_MINUTES } ?: AutoRevert.DEFAULT_MINUTES
         set(value) {
+            require(value in AutoRevert.PRESET_MINUTES) { "Not a preset: $value" }
             editMe {
-                it.put(AUTO_REVERT_MINUTES to value.coerceIn(AutoRevert.MIN_MINUTES, AutoRevert.MAX_MINUTES))
+                it.put(AUTO_REVERT_MINUTES to value)
             }
         }
 }

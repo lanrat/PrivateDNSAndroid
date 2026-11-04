@@ -1,21 +1,21 @@
 package ru.karasevm.privatednstoggle.ui
 
-import android.annotation.SuppressLint
 import android.app.Dialog
-import android.content.DialogInterface
 import android.os.Bundle
-import androidx.core.widget.doAfterTextChanged
+import android.view.View
+import androidx.core.view.children
 import androidx.fragment.app.DialogFragment
+import com.google.android.material.chip.Chip
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import ru.karasevm.privatednstoggle.R
 import ru.karasevm.privatednstoggle.databinding.DialogOptionsBinding
+import ru.karasevm.privatednstoggle.util.AutoRevert
 import ru.karasevm.privatednstoggle.util.PreferenceHelper
 import ru.karasevm.privatednstoggle.util.PreferenceHelper.allowExternalControl
 import ru.karasevm.privatednstoggle.util.PreferenceHelper.autoMode
 import ru.karasevm.privatednstoggle.util.PreferenceHelper.autoRevertEnabled
 import ru.karasevm.privatednstoggle.util.PreferenceHelper.autoRevertMinutes
 import ru.karasevm.privatednstoggle.util.PreferenceHelper.requireUnlock
-import ru.karasevm.privatednstoggle.util.AutoRevert
 import ru.karasevm.privatednstoggle.util.PrivateDNSUtils
 
 class OptionsDialogFragment : DialogFragment() {
@@ -30,8 +30,7 @@ class OptionsDialogFragment : DialogFragment() {
             val builder = MaterialAlertDialogBuilder(it)
             val inflater = requireActivity().layoutInflater
             _binding = DialogOptionsBinding.inflate(inflater)
-            // Text typed before a configuration change is restored after this
-            setUpMinutesField()
+            setUpDelayChips()
 
             val view = binding.root
             builder.setTitle(R.string.options)
@@ -42,29 +41,31 @@ class OptionsDialogFragment : DialogFragment() {
         } ?: throw IllegalStateException("Activity cannot be null")
     }
 
-    /** The entered switch-back delay, or null if it is not a valid number of minutes */
-    private fun enteredMinutes(): Int? = binding.autoRevertMinutes.text?.toString()?.toIntOrNull()
-        ?.takeIf { it in AutoRevert.MIN_MINUTES..AutoRevert.MAX_MINUTES }
-
     /**
-     * Fills in the switch-back delay and validates it while typing.
-     * It is saved when the dialog closes, see [onDismiss].
+     * Adds a chip for each preset delay, checks the saved one and saves the choice right away
      */
-    // The number field only takes ASCII digits, which is also what toIntOrNull parses
-    @SuppressLint("SetTextI18n")
-    private fun setUpMinutesField() {
-        binding.autoRevertMinutes.setText(sharedPreferences.autoRevertMinutes.toString())
-        binding.autoRevertMinutes.doAfterTextChanged {
-            if (enteredMinutes() != null) {
-                binding.autoRevertMinutesLayout.error = null
-            } else {
-                binding.autoRevertMinutesLayout.error = getString(
-                    R.string.auto_revert_minutes_error,
-                    AutoRevert.MIN_MINUTES,
-                    AutoRevert.MAX_MINUTES
-                )
-            }
+    private fun setUpDelayChips() {
+        val group = binding.autoRevertDelayGroup
+        // Not the fragment's layoutInflater, which isn't available inside onCreateDialog
+        val inflater = requireActivity().layoutInflater
+        val selected = sharedPreferences.autoRevertMinutes
+        for (minutes in AutoRevert.PRESET_MINUTES) {
+            val chip = inflater.inflate(R.layout.item_duration_chip, group, false) as Chip
+            chip.id = View.generateViewId()
+            chip.text = AutoRevert.formatDuration(minutes)
+            chip.tag = minutes
+            group.addView(chip)
+            if (minutes == selected) group.check(chip.id)
         }
+        group.setOnCheckedStateChangeListener { chipGroup, checkedIds ->
+            val minutes = checkedIds.firstOrNull()?.let { chipGroup.findViewById<Chip>(it).tag as Int }
+            if (minutes != null) sharedPreferences.autoRevertMinutes = minutes
+        }
+    }
+
+    private fun setDelayChipsEnabled(enabled: Boolean) {
+        binding.autoRevertDelayLabel.isEnabled = enabled
+        binding.autoRevertDelayGroup.children.forEach { it.isEnabled = enabled }
     }
 
     override fun onStart() {
@@ -100,17 +101,11 @@ class OptionsDialogFragment : DialogFragment() {
         }
 
         binding.autoRevertSwitch.isChecked = sharedPreferences.autoRevertEnabled
-        binding.autoRevertMinutesLayout.isEnabled = sharedPreferences.autoRevertEnabled
+        setDelayChipsEnabled(sharedPreferences.autoRevertEnabled)
         binding.autoRevertSwitch.setOnCheckedChangeListener { _, isChecked ->
             sharedPreferences.autoRevertEnabled = isChecked
-            binding.autoRevertMinutesLayout.isEnabled = isChecked
+            setDelayChipsEnabled(isChecked)
             if (!isChecked) AutoRevert.cancel(requireContext())
         }
-    }
-
-    override fun onDismiss(dialog: DialogInterface) {
-        super.onDismiss(dialog)
-        // Invalid input keeps the previous value
-        _binding?.let { enteredMinutes()?.let { sharedPreferences.autoRevertMinutes = it } }
     }
 }
