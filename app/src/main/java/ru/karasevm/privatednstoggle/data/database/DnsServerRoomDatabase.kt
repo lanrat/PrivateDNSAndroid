@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import ru.karasevm.privatednstoggle.data.DnsServerDao
 import ru.karasevm.privatednstoggle.model.DnsServer
 
-@Database(entities = [DnsServer::class], version = 1, exportSchema = false)
+@Database(entities = [DnsServer::class], version = 1, exportSchema = true)
 abstract class DnsServerRoomDatabase : RoomDatabase() {
 
     abstract fun dnsServerDao(): DnsServerDao
