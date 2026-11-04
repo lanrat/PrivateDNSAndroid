@@ -16,6 +16,8 @@ data class DnsServer(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
     @SerialName("server")
+    // Host names are case-insensitive, so lookups and the unique index ignore case
+    @ColumnInfo(collate = ColumnInfo.NOCASE)
     val server: String = "",
     @SerialName("label")
     val label: String = "",

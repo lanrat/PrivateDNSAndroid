@@ -197,7 +197,10 @@ object AutoRevert {
      * was deleted, disabled or changed.
      */
     fun cancelIfProvider(context: Context, server: String) = synchronized(lock) {
-        if (state(context).getString(KEY_PROVIDER, null) == server) cancelLocked(context)
+        // Host names are case-insensitive, like the server list
+        if (state(context).getString(KEY_PROVIDER, null).equals(server, ignoreCase = true)) {
+            cancelLocked(context)
+        }
     }
 
     private fun cancelLocked(context: Context) {

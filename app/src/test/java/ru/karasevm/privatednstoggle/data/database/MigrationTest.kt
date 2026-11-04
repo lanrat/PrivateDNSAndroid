@@ -67,7 +67,7 @@ class MigrationTest {
                 (5, 'b.example', '', 1, 4),
                 (6, 'd.example', '', 1, NULL),
                 (7, 'e.example', '', 1, 6),
-                (8, 'e.example', '', 1, 5)
+                (8, 'E.Example', '', 1, 5)
             """.trimIndent()
         )
 
@@ -81,8 +81,9 @@ class MigrationTest {
                 "1 a.example 'A' 1 1",
                 "2 b.example '' 1 2",
                 "4 c.example '' 0 3",
-                // between equal copies, the one earlier in the list wins, not the lower id
-                "8 e.example '' 1 4",
+                // addresses differing only in case are duplicates; between equal copies the one
+                // earlier in the list wins, not the lower id, and keeps its spelling
+                "8 E.Example '' 1 4",
             ),
             rows()
         )
@@ -116,14 +117,37 @@ class MigrationTest {
     }
 
     @Test
-    fun migrate1To2_addsTheIndexOfTheNewSchema() {
+    fun migrate1To2_producesTheExportedVersion2Schema() {
         MIGRATION_1_2.migrate(connection)
 
-        val expected = createStatements(2).single { it.contains("INDEX") }
-        assertEquals(expected, indexSql().replace("CREATE UNIQUE INDEX", "CREATE UNIQUE INDEX IF NOT EXISTS"))
+        // Room only validates columns and indices, not collation, so compare the SQL itself.
+        // SQLite stores CREATE statements without IF NOT EXISTS, and RENAME rewrites the
+        // table name with double quotes.
+        val expected = createStatements(2).map { it.replace(" IF NOT EXISTS", "") }
+        assertEquals(expected, schemaSql().map { it.replace("\"dns_servers\"", "`dns_servers`") })
+    }
+
+    @Test
+    fun migrate1To2_rejectsDuplicatesIgnoringCase() {
         connection.execSQL("INSERT INTO dns_servers (server, label) VALUES ('a.example', '')")
-        assertThrows(SQLiteException::class.java) {
-            connection.execSQL("INSERT INTO dns_servers (server, label) VALUES ('a.example', '')")
+
+        MIGRATION_1_2.migrate(connection)
+
+        for (duplicate in listOf("a.example", "A.Example")) {
+            assertThrows(duplicate, SQLiteException::class.java) {
+                connection.execSQL("INSERT INTO dns_servers (server, label) VALUES ('$duplicate', '')")
+            }
+        }
+        // and lookups ignore case
+        connection.prepare("SELECT COUNT(*) FROM dns_servers WHERE server = 'A.EXAMPLE'").use {
+            it.step()
+            assertEquals(1L, it.getLong(0))
+        }
+        // ids keep counting up after the table was rebuilt
+        connection.execSQL("INSERT INTO dns_servers (server, label) VALUES ('b.example', '')")
+        connection.prepare("SELECT id FROM dns_servers WHERE server = 'b.example'").use {
+            it.step()
+            assertEquals(2L, it.getLong(0))
         }
     }
 
@@ -133,9 +157,14 @@ class MigrationTest {
         assertEquals(emptyList<String>(), rows())
     }
 
-    private fun indexSql(): String =
-        connection.prepare("SELECT sql FROM sqlite_master WHERE name = 'index_dns_servers_server'").use {
-            check(it.step()) { "index missing" }
-            it.getText(0)
+    /** CREATE statements of the app's tables and indices, as SQLite stored them */
+    private fun schemaSql(): List<String> {
+        val result = mutableListOf<String>()
+        connection.prepare(
+            "SELECT sql FROM sqlite_master WHERE tbl_name = 'dns_servers' AND sql IS NOT NULL ORDER BY type DESC"
+        ).use {
+            while (it.step()) result += it.getText(0)
         }
+        return result
+    }
 }

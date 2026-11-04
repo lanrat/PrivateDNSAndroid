@@ -28,7 +28,8 @@ class FakeDnsServerDao(initial: List<DnsServer> = emptyList()) : DnsServerDao {
     override suspend fun getFirstEnabled(): DnsServer? = rows.firstOrNull { it.enabled }
 
     override suspend fun getFirstByServer(server: String): DnsServer? =
-        servers.value.firstOrNull { it.server == server }
+        // Like the COLLATE NOCASE column
+        servers.value.firstOrNull { it.server.equals(server, ignoreCase = true) }
 
     override suspend fun getById(id: Int): DnsServer? = servers.value.firstOrNull { it.id == id }
 
@@ -65,7 +66,7 @@ class FakeDnsServerDao(initial: List<DnsServer> = emptyList()) : DnsServerDao {
     override suspend fun update(id: Int, server: String?, label: String?, sortOrder: Int?, enabled: Boolean?): Int {
         if (getById(id) == null) return 0
         // Like UPDATE OR IGNORE with the unique index
-        if (server != null && servers.value.any { it.server == server && it.id != id }) return 0
+        if (server != null && servers.value.any { it.server.equals(server, ignoreCase = true) && it.id != id }) return 0
         mutate { list ->
             list.map {
                 if (it.id != id) it else it.copy(

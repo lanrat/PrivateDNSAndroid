@@ -580,7 +580,7 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
             onDuplicate = { showDuplicateServerToast() },
             onUpdated = { old ->
                 // Don't switch back to a server that was disabled or changed
-                if (old != null && (old.server != server || !enabled)) {
+                if (old != null && (!old.server.equals(server, ignoreCase = true) || !enabled)) {
                     AutoRevert.cancelIfProvider(applicationContext, old.server)
                 }
             }

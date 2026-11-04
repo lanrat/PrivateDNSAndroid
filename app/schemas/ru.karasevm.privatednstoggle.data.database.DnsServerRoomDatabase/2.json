@@ -6,7 +6,7 @@
     "entities": [
       {
         "tableName": "dns_servers",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `server` TEXT NOT NULL, `label` TEXT NOT NULL, `enabled` INTEGER NOT NULL DEFAULT 1, `sortOrder` INTEGER)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `server` TEXT NOT NULL COLLATE NOCASE, `label` TEXT NOT NULL, `enabled` INTEGER NOT NULL DEFAULT 1, `sortOrder` INTEGER)",
         "fields": [
           {
             "fieldPath": "id",

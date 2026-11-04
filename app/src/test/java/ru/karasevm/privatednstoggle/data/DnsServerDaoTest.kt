@@ -30,4 +30,15 @@ class DnsServerDaoTest {
             dao.rows
         )
     }
+
+    @Test
+    fun lookupsIgnoreCase() = runTest {
+        val dao = FakeDnsServerDao(listOf(DnsServer(server = "a.example"), DnsServer(server = "b.example")))
+
+        // e.g. the system hostname was typed with different case in the system settings
+        assertEquals("a.example", dao.getFirstByServer("A.Example")?.server)
+        assertEquals("b.example", dao.getNextEnabledByServer("A.EXAMPLE")?.server)
+        dao.insertAllIfAbsent(listOf(DnsServer(server = "B.Example")))
+        assertEquals(2, dao.rows.size)
+    }
 }
