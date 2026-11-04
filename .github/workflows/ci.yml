@@ -2,8 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: ["**"]
+    paths-ignore: ["**.md", "fastlane/**"]
   pull_request:
+    paths-ignore: ["**.md", "fastlane/**"]
   workflow_dispatch:
 
 permissions:
