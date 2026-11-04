@@ -3,7 +3,6 @@ package ru.karasevm.privatednstoggle.ui
 import android.app.Dialog
 import android.content.Intent
 import android.os.Bundle
-import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
@@ -12,7 +11,8 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.launch
-import ru.karasevm.privatednstoggle.PrivateDNSApp
+import ru.karasevm.privatednstoggle.app
+import ru.karasevm.privatednstoggle.dns.DnsChange
 import ru.karasevm.privatednstoggle.R
 import ru.karasevm.privatednstoggle.data.DnsServerViewModel
 import ru.karasevm.privatednstoggle.data.DnsServerViewModelFactory
@@ -21,7 +21,6 @@ import ru.karasevm.privatednstoggle.model.DnsServer
 import ru.karasevm.privatednstoggle.util.AutoRevert
 import ru.karasevm.privatednstoggle.util.DnsSetting
 import ru.karasevm.privatednstoggle.util.PrivateDNSUtils
-import ru.karasevm.privatednstoggle.util.PrivateDNSUtils.checkForPermission
 
 class DNSServerDialogFragment : DialogFragment() {
 
@@ -31,8 +30,8 @@ class DNSServerDialogFragment : DialogFragment() {
     private lateinit var linearLayoutManager: LinearLayoutManager
     private lateinit var adapter: ServerListRecyclerAdapter
     private var servers: MutableList<DnsServer> = mutableListOf()
-    private val dnsServerViewModel: DnsServerViewModel by viewModels { DnsServerViewModelFactory((requireActivity().application as PrivateDNSApp).repository) }
-    private val contentResolver by lazy { requireActivity().contentResolver }
+    private val dnsServerViewModel: DnsServerViewModel by viewModels { DnsServerViewModelFactory(requireContext().app) }
+    private val controller by lazy { requireContext().app.dnsController }
 
     override fun onCreateDialog(
         savedInstanceState: Bundle?
@@ -56,7 +55,7 @@ class DNSServerDialogFragment : DialogFragment() {
                     }
                     servers.add(0, DnsServer(AUTO_ID, resources.getString(R.string.dns_auto)))
                     // "Off for…" needs a server to switch back to
-                    if (AutoRevert.switchBackTarget(requireContext()) != null) {
+                    if (controller.switchBackTarget() != null) {
                         servers.add(0, DnsServer(OFF_FOR_ID, resources.getString(R.string.dns_off_for)))
                     }
                     servers.add(0, DnsServer(OFF_ID, resources.getString(R.string.dns_off)))
@@ -77,7 +76,7 @@ class DNSServerDialogFragment : DialogFragment() {
 
     override fun onStart() {
         super.onStart()
-        if (!checkForPermission(requireContext())) {
+        if (!controller.hasPermission()) {
             Toast.makeText(
                 context, R.string.permission_missing, Toast.LENGTH_SHORT
             ).show()
@@ -95,16 +94,17 @@ class DNSServerDialogFragment : DialogFragment() {
                 AUTO_ID -> DnsSetting(PrivateDNSUtils.DNS_MODE_AUTO, null)
                 else -> server?.let { DnsSetting(PrivateDNSUtils.DNS_MODE_PRIVATE, it.server) }
             }
-            if (next != null && applySafely { AutoRevert.applyUserChange(requireContext(), next, fromOtherApp = false) }) {
-                val message = when (id) {
-                    OFF_ID -> getString(R.string.set_to_off_toast)
-                    AUTO_ID -> getString(R.string.set_to_auto_toast)
-                    else -> getString(
-                        R.string.set_to_provider_toast,
-                        server?.label?.ifEmpty { null } ?: next.provider
-                    )
+            if (next != null) {
+                report(controller.select(next)) {
+                    when (id) {
+                        OFF_ID -> getString(R.string.set_to_off_toast)
+                        AUTO_ID -> getString(R.string.set_to_auto_toast)
+                        else -> getString(
+                            R.string.set_to_provider_toast,
+                            server?.label?.ifEmpty { null } ?: next.provider
+                        )
+                    }
                 }
-                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
             }
             // The tile observes the system settings and refreshes itself
             dialog?.dismiss()
@@ -115,18 +115,19 @@ class DNSServerDialogFragment : DialogFragment() {
     private var offForDialog: AlertDialog? = null
 
     /**
-     * Runs [change], showing a toast instead of crashing if the permission was revoked since
-     * the dialog opened.
-     *
-     * @return whether the change was made
+     * Shows a toast for the outcome of a change: [appliedMessage] when it was applied, or when
+     * Private DNS will be switched back on if the change scheduled that.
      */
-    private fun applySafely(change: () -> Unit): Boolean = try {
-        change()
-        true
-    } catch (e: SecurityException) {
-        Log.w(TAG, "could not change settings", e)
-        Toast.makeText(context, R.string.permission_missing, Toast.LENGTH_SHORT).show()
-        false
+    private fun report(change: DnsChange, appliedMessage: () -> String?) {
+        val message = when (change) {
+            is DnsChange.Applied -> change.switchBackAt
+                ?.let { AutoRevert.scheduledMessage(requireContext(), it) }
+                ?: appliedMessage()
+
+            DnsChange.PermissionMissing -> getString(R.string.permission_missing)
+            DnsChange.NoEnabledServer, DnsChange.NothingToSwitchBackTo -> null
+        }
+        message?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
     }
 
     /**
@@ -137,7 +138,7 @@ class DNSServerDialogFragment : DialogFragment() {
         offForDialog = MaterialAlertDialogBuilder(requireContext())
             .setTitle(R.string.off_for_title)
             .setItems(presets.map { AutoRevert.formatDuration(it) }.toTypedArray()) { _, which ->
-                applySafely { AutoRevert.turnOffFor(requireContext(), presets[which]) }
+                report(controller.turnOffFor(presets[which])) { null }
                 dismiss()
             }
             .setNegativeButton(R.string.cancel, null)

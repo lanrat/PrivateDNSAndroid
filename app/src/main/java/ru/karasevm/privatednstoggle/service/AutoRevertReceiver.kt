@@ -7,10 +7,10 @@ import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import ru.karasevm.privatednstoggle.util.AutoRevert
+import ru.karasevm.privatednstoggle.app
 
 /**
- * Carries out the pending switch-back of [AutoRevert] when its alarm fires, and restores the
+ * Carries out the pending switch-back (see [ru.karasevm.privatednstoggle.dns.DnsController.runDueSwitchBack]) when its alarm fires, and restores the
  * alarm after a reboot or app update, which clear alarms.
  */
 class AutoRevertReceiver : BroadcastReceiver() {
@@ -27,8 +27,10 @@ class AutoRevertReceiver : BroadcastReceiver() {
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                // Checks the deadline, so an outdated alarm just re-arms the current one
-                AutoRevert.catchUp(context)
+                // Checks the deadline, so an outdated alarm just re-arms the current one.
+                // No toast: Android 13+ hides them from the background without the
+                // notification permission. The tile shows the result.
+                context.app.dnsController.runDueSwitchBack()
             } finally {
                 pendingResult.finish()
             }

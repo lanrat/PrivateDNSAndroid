@@ -3,11 +3,8 @@ package ru.karasevm.privatednstoggle.service
 import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.Intent
-import android.database.ContentObserver
 import android.graphics.drawable.Icon
 import android.os.Build
-import android.os.Handler
-import android.os.Looper
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import android.util.Log
@@ -18,69 +15,59 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import ru.karasevm.privatednstoggle.PrivateDNSApp
 import ru.karasevm.privatednstoggle.R
-import ru.karasevm.privatednstoggle.data.DnsServerRepository
+import ru.karasevm.privatednstoggle.app
+import ru.karasevm.privatednstoggle.dns.DnsChange
 import ru.karasevm.privatednstoggle.ui.MainActivity
 import ru.karasevm.privatednstoggle.util.AutoRevert
-import ru.karasevm.privatednstoggle.util.PreferenceHelper
-import ru.karasevm.privatednstoggle.util.PreferenceHelper.autoMode
-import ru.karasevm.privatednstoggle.util.PreferenceHelper.requireUnlock
-import ru.karasevm.privatednstoggle.util.PrivateDNSUtils
 import ru.karasevm.privatednstoggle.util.PrivateDNSUtils.DNS_MODE_AUTO
 import ru.karasevm.privatednstoggle.util.PrivateDNSUtils.DNS_MODE_OFF
 import ru.karasevm.privatednstoggle.util.PrivateDNSUtils.DNS_MODE_PRIVATE
-import ru.karasevm.privatednstoggle.util.PrivateDNSUtils.checkForPermission
 
+/**
+ * The quick settings tile. A tap moves to the next server or mode (see
+ * [ru.karasevm.privatednstoggle.dns.DnsController.cycle]); the tile shows the current setting
+ * and follows changes made anywhere while it is visible.
+ */
 class DnsTileService : TileService() {
 
-    private val repository: DnsServerRepository by lazy { (application as PrivateDNSApp).repository }
+    private val controller by lazy { app.dnsController }
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    private val sharedPreferences by lazy { PreferenceHelper.defaultPreference(this) }
-    private var isObserverRegistered = false
+    private var listeningJob: Job? = null
     private var refreshJob: Job? = null
-
-    /**
-     * Refreshes the tile whenever the system Private DNS settings change while the tile is
-     * visible, whether the change came from this app, the system Settings app or anything else.
-     */
-    private val settingsObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
-        override fun onChange(selfChange: Boolean) {
-            refreshTile()
-        }
-    }
 
     override fun onTileAdded() {
         super.onTileAdded()
         refreshTile()
     }
 
+    override fun onClick() {
+        super.onClick()
+        if (!controller.hasPermission()) {
+            return
+        }
+        // Require unlock to change mode according to user preference
+        if (isLocked && app.preferences.requireUnlock) {
+            unlockAndRun(this::cycleState)
+        } else {
+            cycleState()
+        }
+    }
+
     /**
-     *  Sets the system settings to the next state, then refreshes the tile.
+     *  Moves to the next server or mode, then refreshes the tile.
      *  Opens the app instead if private mode is needed but no server is enabled.
      */
     private fun cycleState() {
         scope.launch {
-            val next = PrivateDNSUtils.getNextProvider(
-                sharedPreferences.autoMode,
-                PrivateDNSUtils.getPrivateMode(contentResolver),
-                PrivateDNSUtils.getPrivateProvider(contentResolver),
-                repository
-            )
-            if (next == null) {
-                Log.i(TAG, "cycleState: no enabled servers, opening the app")
-                withContext(Dispatchers.Main) { openApp() }
-                return@launch
+            when (controller.cycle()) {
+                DnsChange.NoEnabledServer -> {
+                    Log.i(TAG, "cycleState: no enabled servers, opening the app")
+                    withContext(Dispatchers.Main) { openApp() }
+                }
+                // A revoked permission shows as an unavailable tile after the refresh
+                else -> withContext(Dispatchers.Main) { refreshTile() }
             }
-            try {
-                AutoRevert.applyUserChange(this@DnsTileService, next, fromOtherApp = false)
-            } catch (e: SecurityException) {
-                // The permission was revoked after the check in onClick, the refresh below
-                // shows the tile as unavailable
-                Log.w(TAG, "cycleState: could not change settings", e)
-            }
-            // The settings observer refreshes too, but only if the value actually changed
-            withContext(Dispatchers.Main) { refreshTile() }
         }
     }
 
@@ -101,19 +88,38 @@ class DnsTileService : TileService() {
         }
     }
 
-    override fun onClick() {
-        super.onClick()
-        if (!checkForPermission(this)) {
+    override fun onStartListening() {
+        super.onStartListening()
+
+        // Prevent some crashes
+        if (qsTile == null) {
+            Log.w(TAG, "onStartListening: qsTile is null")
             return
         }
 
-        // Require unlock to change mode according to user preference
-        val requireUnlock = sharedPreferences.requireUnlock
-        if (isLocked && requireUnlock) {
-            unlockAndRun(this::cycleState)
-        } else {
-            cycleState()
+        // Follow changes while visible, whether made by this app, the system Settings or others
+        listeningJob?.cancel()
+        listeningJob = scope.launch(Dispatchers.Main) {
+            controller.changes().collect { refreshTile() }
         }
+        refreshTile()
+        // Run a switch-back whose alarm was delayed, then show the result
+        scope.launch {
+            if (controller.runDueSwitchBack() != null) {
+                withContext(Dispatchers.Main) { refreshTile() }
+            }
+        }
+    }
+
+    override fun onStopListening() {
+        super.onStopListening()
+        listeningJob?.cancel()
+        listeningJob = null
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        scope.cancel()
     }
 
     /**
@@ -127,100 +133,35 @@ class DnsTileService : TileService() {
     }
 
     private suspend fun updateTileFromSettings() {
-        val isPermissionGranted = checkForPermission(this)
-        val dnsMode = PrivateDNSUtils.getPrivateMode(contentResolver)
+        val (isPermissionGranted, setting, pendingAt) = withContext(Dispatchers.IO) {
+            Triple(controller.hasPermission(), controller.current(), controller.pendingSwitchBackAt())
+        }
+        val inactive = if (isPermissionGranted) Tile.STATE_INACTIVE else Tile.STATE_UNAVAILABLE
         // While Private DNS is not on, show when it will be switched back on
-        val pendingAt = withContext(Dispatchers.IO) { AutoRevert.pendingAt(this@DnsTileService) }
-        val revertSubtitle = pendingAt?.let {
+        val switchBackSubtitle = pendingAt?.let {
             getString(R.string.auto_revert_tile_subtitle, AutoRevert.formatTime(this, it))
         }
-        when (dnsMode.lowercase()) {
-            DNS_MODE_OFF -> {
-                setTile(
-                    if (!isPermissionGranted) Tile.STATE_UNAVAILABLE else Tile.STATE_INACTIVE,
-                    getString(R.string.dns_off),
-                    R.drawable.ic_off_black_24dp,
-                    revertSubtitle
-                )
-            }
-
-            DNS_MODE_AUTO -> {
-                setTile(
-                    if (!isPermissionGranted) Tile.STATE_UNAVAILABLE else Tile.STATE_INACTIVE,
-                    getString(R.string.dns_auto),
-                    R.drawable.ic_auto_black_24dp,
-                    revertSubtitle
-                )
-            }
-
-            DNS_MODE_PRIVATE -> {
-                val activeAddress = PrivateDNSUtils.getPrivateProvider(contentResolver)
-                val dnsServer = activeAddress?.let {
-                    withContext(Dispatchers.IO) { repository.getFirstByServer(it) }
-                }
-                setTile(
-                    if (!isPermissionGranted) Tile.STATE_UNAVAILABLE else Tile.STATE_ACTIVE,
-                    // display server address if either there is no label or the server is not known
-                    dnsServer?.label?.ifBlank { null }
-                        ?: activeAddress
-                        ?: getString(R.string.dns_unknown),
-                    R.drawable.ic_private_black_24dp
-                )
-            }
-
-            else -> {
-                setTile(
-                    if (!isPermissionGranted) Tile.STATE_UNAVAILABLE else Tile.STATE_INACTIVE,
-                    getString(R.string.dns_unknown),
-                    R.drawable.ic_unknown_black_24dp,
-                    revertSubtitle
-                )
-            }
-        }
-    }
-
-    override fun onStartListening() {
-        super.onStartListening()
-
-        // Prevent some crashes
-        if (qsTile == null) {
-            Log.w(TAG, "onStartListening: qsTile is null")
-            return
-        }
-
-        if (!isObserverRegistered) {
-            contentResolver.registerContentObserver(
-                PrivateDNSUtils.PRIVATE_DNS_MODE_URI, false, settingsObserver
+        when (setting.mode.lowercase()) {
+            DNS_MODE_OFF -> setTile(
+                inactive, getString(R.string.dns_off), R.drawable.ic_off_black_24dp, switchBackSubtitle
             )
-            contentResolver.registerContentObserver(
-                PrivateDNSUtils.PRIVATE_DNS_PROVIDER_URI, false, settingsObserver
+
+            DNS_MODE_AUTO -> setTile(
+                inactive, getString(R.string.dns_auto), R.drawable.ic_auto_black_24dp, switchBackSubtitle
             )
-            isObserverRegistered = true
-        }
-        refreshTile()
-        // Run a switch-back whose alarm was delayed, then show the result
-        scope.launch {
-            if (AutoRevert.catchUp(this@DnsTileService)) {
-                withContext(Dispatchers.Main) { refreshTile() }
-            }
-        }
-    }
 
-    override fun onStopListening() {
-        super.onStopListening()
-        if (isObserverRegistered) {
-            contentResolver.unregisterContentObserver(settingsObserver)
-            isObserverRegistered = false
-        }
-    }
+            DNS_MODE_PRIVATE -> setTile(
+                if (isPermissionGranted) Tile.STATE_ACTIVE else Tile.STATE_UNAVAILABLE,
+                // the server's label, or its address if it has none or isn't saved
+                setting.provider?.let { withContext(Dispatchers.IO) { controller.displayName(it) } }
+                    ?: getString(R.string.dns_unknown),
+                R.drawable.ic_private_black_24dp
+            )
 
-    override fun onDestroy() {
-        super.onDestroy()
-        if (isObserverRegistered) {
-            contentResolver.unregisterContentObserver(settingsObserver)
-            isObserverRegistered = false
+            else -> setTile(
+                inactive, getString(R.string.dns_unknown), R.drawable.ic_unknown_black_24dp, switchBackSubtitle
+            )
         }
-        scope.cancel()
     }
 
     /**

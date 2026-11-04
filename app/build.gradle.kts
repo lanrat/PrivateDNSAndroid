@@ -58,6 +58,10 @@ extensions.configure<ApplicationExtension>  {
         // Disables dependency metadata when building Android App Bundles.
         includeInBundle = false
     }
+    testOptions {
+        // android.* calls (e.g. Log) return defaults in JVM unit tests instead of throwing
+        unitTests.isReturnDefaultValues = true
+    }
     lint {
         // Translations are managed on Weblate and are often incomplete; missing
         // strings fall back to English at runtime, so don't fail the build on them.

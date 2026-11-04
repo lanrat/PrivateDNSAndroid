@@ -1,13 +1,10 @@
 package ru.karasevm.privatednstoggle.ui
 
-import android.Manifest
 import android.content.ClipData
 import android.content.ClipDescription.MIMETYPE_TEXT_PLAIN
 import android.content.ClipboardManager
 import android.content.Intent
-import android.content.SharedPreferences
-import android.content.pm.PackageManager
-import android.graphics.Color
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -17,15 +14,8 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.appcompat.app.AlertDialog
+import androidx.annotation.StringRes
 import androidx.appcompat.app.AppCompatActivity
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
-import androidx.compose.ui.platform.ComposeView
 import androidx.core.app.ShareCompat
 import androidx.core.net.toUri
 import androidx.core.view.ViewCompat
@@ -33,297 +23,176 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
 import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.viewModelScope
 import androidx.recyclerview.widget.ItemTouchHelper
-import androidx.recyclerview.widget.ItemTouchHelper.DOWN
-import androidx.recyclerview.widget.ItemTouchHelper.UP
 import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
-import rikka.shizuku.Shizuku
-import rikka.shizuku.ShizukuProvider
-import ru.karasevm.privatednstoggle.PrivateDNSApp
 import ru.karasevm.privatednstoggle.R
+import ru.karasevm.privatednstoggle.app
 import ru.karasevm.privatednstoggle.data.DnsServerViewModel
 import ru.karasevm.privatednstoggle.data.DnsServerViewModelFactory
 import ru.karasevm.privatednstoggle.databinding.ActivityMainBinding
 import ru.karasevm.privatednstoggle.model.DnsServer
-import ru.karasevm.privatednstoggle.util.AutoRevert
-import ru.karasevm.privatednstoggle.util.BackupUtils
-import ru.karasevm.privatednstoggle.util.PreferenceHelper
-import ru.karasevm.privatednstoggle.util.PreferenceHelper.dns_servers
-import ru.karasevm.privatednstoggle.util.ShizukuUtil.grantPermissionWithShizuku
-import kotlin.math.roundToInt
 import java.io.IOException
+import kotlin.math.roundToInt
 
-
+/**
+ * The server list, with the menu for options, import/export and licenses.
+ *
+ * The work is done elsewhere: [DnsServerViewModel] (servers and backups), [PermissionFlow]
+ * (getting WRITE_SECURE_SETTINGS) and [ServerReorderCallback] (drag and drop).
+ */
 class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogListener,
-    DeleteServerDialogFragment.NoticeDialogListener, Shizuku.OnRequestPermissionResultListener {
+    DeleteServerDialogFragment.NoticeDialogListener {
 
-    private lateinit var linearLayoutManager: LinearLayoutManager
     private lateinit var binding: ActivityMainBinding
-    private lateinit var sharedPrefs: SharedPreferences
     private lateinit var adapter: ServerListRecyclerAdapter
     private lateinit var clipboard: ClipboardManager
-    private val dnsServerViewModel: DnsServerViewModel by viewModels { DnsServerViewModelFactory((application as PrivateDNSApp).repository) }
+    private val dnsServerViewModel: DnsServerViewModel by viewModels { DnsServerViewModelFactory(app) }
 
-    private val itemTouchHelper by lazy {
-        val simpleItemTouchCallback =
-            object : ItemTouchHelper.SimpleCallback(UP or DOWN, 0) {
-                var dragFrom = -1
-                var dragTo = -1
-
-                override fun onMove(
-                    recyclerView: RecyclerView,
-                    viewHolder: RecyclerView.ViewHolder,
-                    target: RecyclerView.ViewHolder
-                ): Boolean {
-                    if (dragFrom == viewHolder.bindingAdapterPosition && dragTo == target.bindingAdapterPosition) {
-                        return true
-                    }
-                    // store the drag position
-                    if (dragFrom == -1) dragFrom = viewHolder.bindingAdapterPosition
-                    dragTo = target.bindingAdapterPosition
-                    adapter.onItemMove(
-                        viewHolder.bindingAdapterPosition,
-                        target.bindingAdapterPosition
-                    )
-                    return true
-                }
-
-                override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {}
-
-                override fun onSelectedChanged(
-                    viewHolder: RecyclerView.ViewHolder?, actionState: Int
-                ) {
-                    super.onSelectedChanged(viewHolder, actionState)
-                    if (actionState == ItemTouchHelper.ACTION_STATE_DRAG) {
-                        viewHolder?.itemView?.apply {
-                            // Example: Elevate the view
-                            elevation = 8f
-                            alpha = 0.5f
-                            setBackgroundColor(Color.GRAY)
-                        }
-                    }
-                }
-
-                override fun clearView(
-                    recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder
-                ) {
-                    super.clearView(recyclerView, viewHolder)
-                    viewHolder.itemView.apply {
-                        // Reset the appearance
-                        elevation = 0f
-                        alpha = 1.0f
-                        setBackgroundColor(Color.TRANSPARENT)
-                    }
-                    // commit the change to the db
-                    dnsServerViewModel.move(
-                        dragFrom,
-                        dragTo,
-                        (viewHolder as ServerListRecyclerAdapter.DnsServerViewHolder).id
-                    )
-                    dragTo = -1
-                    dragFrom = -1
-                    // Positions changed without a rebind
-                    adapter.refreshMoveActions()
-                }
-            }
-        ItemTouchHelper(simpleItemTouchCallback)
-    }
-
-    private fun importSettings(json: String) {
-        runCatching {
-            val data: BackupUtils.Backup = Json.decodeFromString<BackupUtils.Backup>(json)
-            BackupUtils.import(data, dnsServerViewModel, sharedPrefs)
-        }.onSuccess {
-            Toast.makeText(
-                this, getString(R.string.import_success), Toast.LENGTH_SHORT
-            ).show()
-        }.onFailure { exception ->
-            runCatching {
-                Log.e("IMPORT", "Malformed json, falling back to legacy", exception)
-                val data = Json.decodeFromString<BackupUtils.LegacyBackup>(json)
-                BackupUtils.importLegacy(data, dnsServerViewModel, sharedPrefs)
-            }.onSuccess {
-                Toast.makeText(
-                    this, getString(R.string.import_success), Toast.LENGTH_SHORT
-                ).show()
-            }.onFailure { exception ->
-                Log.e("IMPORT", "Import failed", exception)
-                Toast.makeText(
-                    this, getString(R.string.import_failure), Toast.LENGTH_SHORT
-                ).show()
-            }
+    private val exportFileLauncher =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
+            if (uri != null) exportToFile(uri)
         }
-    }
 
-    /**
-     *  Migrate the SharedPreferences server list to Room
-     */
-    private fun migrateServerList() {
-        dnsServerViewModel.viewModelScope.launch {
-            if (sharedPrefs.dns_servers.isNotEmpty() && sharedPrefs.dns_servers[0] != "") {
-                Log.i(
-                    "migrate",
-                    "existing sharedPrefs list: ${sharedPrefs.dns_servers} ${sharedPrefs.dns_servers.size}"
-                )
-                val servers = sharedPrefs.dns_servers.map { server ->
-                    val parts = server.split(" : ").toMutableList()
-                    if (parts.size != 2) parts.add(0, "")
-                    Log.i("migrate", "migrating: $server -> $parts")
-                    DnsServer(0, parts[1], parts[0])
-                }
-                // A single transaction keeps the original order
-                dnsServerViewModel.insertAllIfAbsent(BackupUtils.validServers(servers))
-                sharedPrefs.dns_servers = emptyList<String>().toMutableList()
-            }
+    private val importFileLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) importFromFile(uri)
         }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        shizukuRequested = savedInstanceState?.getBoolean(STATE_SHIZUKU_REQUESTED) == true
-        shizukuGrantAttempted = savedInstanceState?.getBoolean(STATE_SHIZUKU_GRANT_ATTEMPTED) == true
-
-        Shizuku.addRequestPermissionResultListener(this)
+        PermissionFlow(this)
 
         binding = ActivityMainBinding.inflate(layoutInflater)
-        val view = binding.root
-        setContentView(view)
-
-        linearLayoutManager = LinearLayoutManager(this)
-        binding.recyclerView.layoutManager = linearLayoutManager
-
-        sharedPrefs = PreferenceHelper.defaultPreference(this)
+        setContentView(binding.root)
         clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
 
-        migrateServerList()
+        setUpServerList()
+        binding.floatingActionButton.setOnClickListener {
+            AddServerDialogFragment.newInstance(null).show(supportFragmentManager, "add_server")
+        }
+        binding.topAppBar.setOnMenuItemClickListener { item -> onMenuItemClick(item.itemId) }
+        handleWindowInsets()
+    }
 
+    override fun onResume() {
+        super.onResume()
+        // Run a switch-back whose alarm was delayed
+        lifecycleScope.launch {
+            val controller = app.dnsController
+            val switchedTo = withContext(Dispatchers.IO) { controller.runDueSwitchBack() }
+            switchedTo?.provider?.let { provider ->
+                val name = controller.displayName(provider)
+                Toast.makeText(this@MainActivity, getString(R.string.set_to_provider_toast, name), Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun setUpServerList() {
         adapter = ServerListRecyclerAdapter(true)
+        binding.recyclerView.layoutManager = LinearLayoutManager(this)
         binding.recyclerView.adapter = adapter
 
         dnsServerViewModel.allServers.observe(this) { servers ->
             adapter.submitList(servers)
-            if (servers.isEmpty()) {
-                binding.emptyView.visibility = View.VISIBLE
-                binding.emptyViewHint.visibility = View.VISIBLE
-            } else {
-                binding.emptyView.visibility = View.GONE
-                binding.emptyViewHint.visibility = View.GONE
-            }
+            val emptyVisibility = if (servers.isEmpty()) View.VISIBLE else View.GONE
+            binding.emptyView.visibility = emptyVisibility
+            binding.emptyViewHint.visibility = emptyVisibility
         }
         adapter.onItemClick = { id ->
             // Synchronous, so the dialog can't be shown after the activity was stopped, and
             // a double tap doesn't open two
             val server = adapter.getItem(id)
             if (server != null && supportFragmentManager.findFragmentByTag(EDIT_SERVER_TAG) == null) {
-                AddServerDialogFragment.newInstance(server)
-                    .show(supportFragmentManager, EDIT_SERVER_TAG)
+                AddServerDialogFragment.newInstance(server).show(supportFragmentManager, EDIT_SERVER_TAG)
             }
         }
-        adapter.onDragStart = { viewHolder ->
-            itemTouchHelper.startDrag(viewHolder)
-        }
+
+        // Positions match sortOrder
+        val itemTouchHelper = ItemTouchHelper(ServerReorderCallback(adapter) { from, to, id ->
+            dnsServerViewModel.move(from, to, id)
+        })
+        itemTouchHelper.attachToRecyclerView(binding.recyclerView)
+        adapter.onDragStart = { viewHolder -> itemTouchHelper.startDrag(viewHolder) }
+        // Moving without dragging, for accessibility services
         adapter.onMove = { from, to, id ->
             adapter.onItemMove(from, to)
             adapter.refreshMoveActions()
-            // Positions match sortOrder, as for drag and drop
             dnsServerViewModel.move(from, to, id)
         }
-        binding.floatingActionButton.setOnClickListener {
-            val newFragment = AddServerDialogFragment.newInstance(null)
-            newFragment.show(supportFragmentManager, "add_server")
-        }
-        binding.recyclerView.adapter = adapter
-        itemTouchHelper.attachToRecyclerView(binding.recyclerView)
+    }
 
-        binding.topAppBar.setOnMenuItemClickListener { item ->
-            when (item.itemId) {
-                R.id.privacy_policy -> {
-                    val browserIntent = Intent(
-                        Intent.ACTION_VIEW,
-                        "https://karasevm.github.io/PrivateDNSAndroid/privacy_policy".toUri()
-                    )
-                    startActivity(browserIntent)
-                    true
-                }
+    private fun onMenuItemClick(itemId: Int): Boolean {
+        when (itemId) {
+            R.id.privacy_policy -> startActivity(
+                Intent(Intent.ACTION_VIEW, "https://karasevm.github.io/PrivateDNSAndroid/privacy_policy".toUri())
+            )
 
-                R.id.export_settings_clipboard -> {
-                    lifecycleScope.launch {
-                        val data = BackupUtils.export(dnsServerViewModel, sharedPrefs)
-                        val jsonData = Json.encodeToString(data)
-                        clipboard.setPrimaryClip(ClipData.newPlainText("", jsonData))
-                        // Only show a toast for Android 12 and lower.
-                        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) Toast.makeText(
-                            applicationContext, getString(R.string.copy_success), Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                    true
-                }
-
-                R.id.export_settings_share -> {
-                    val activityContext = this
-                    lifecycleScope.launch {
-                        val data = BackupUtils.export(dnsServerViewModel, sharedPrefs)
-                        val jsonData = Json.encodeToString(data)
-                        ShareCompat.IntentBuilder(activityContext).setText(jsonData)
-                            .setType("text/plain")
-                            .startChooser()
-                    }
-                    true
-                }
-
-                R.id.export_settings_file -> {
-                    val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-                        addCategory(Intent.CATEGORY_OPENABLE)
-                        type = "text/plain"
-                        putExtra(Intent.EXTRA_TITLE, "private-dns-export")
-                    }
-                    saveResultLauncher.launch(intent)
-                    true
-                }
-
-                R.id.import_settings_file -> {
-                    val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                        addCategory(Intent.CATEGORY_OPENABLE)
-                        type = "text/plain"
-                    }
-                    importResultLauncher.launch(intent)
-                    true
-                }
-
-                R.id.import_settings_clipboard -> {
-                    val clipData = clipboard.primaryClip?.getItemAt(0)
-                    val textData = clipData?.text
-
-                    if (textData != null) {
-                        importSettings(textData.toString())
-                    }
-                    true
-                }
-
-                R.id.options -> {
-                    val newFragment = OptionsDialogFragment()
-                    newFragment.show(supportFragmentManager, "options")
-                    true
-                }
-
-                R.id.open_source_licenses -> {
-                    // start license activity
-                    val intent = Intent(this, AboutLibsActivity::class.java)
-                    startActivity(intent)
-                    true
-                }
-
-                else -> true
+            R.id.export_settings_clipboard -> lifecycleScope.launch {
+                clipboard.setPrimaryClip(ClipData.newPlainText("", dnsServerViewModel.exportJson()))
+                // Android 13+ shows its own confirmation
+                if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) toast(R.string.copy_success)
             }
-        }
 
-        // Handle edge-to-edge layout
+            R.id.export_settings_share -> lifecycleScope.launch {
+                ShareCompat.IntentBuilder(this@MainActivity)
+                    .setText(dnsServerViewModel.exportJson())
+                    .setType("text/plain")
+                    .startChooser()
+            }
+
+            R.id.export_settings_file -> exportFileLauncher.launch("private-dns-export")
+            R.id.import_settings_file -> importFileLauncher.launch(arrayOf("text/plain"))
+            R.id.import_settings_clipboard ->
+                clipboard.primaryClip?.getItemAt(0)?.text?.let { importJson(it.toString()) }
+
+            R.id.options -> OptionsDialogFragment().show(supportFragmentManager, "options")
+            R.id.open_source_licenses -> startActivity(Intent(this, AboutLibsActivity::class.java))
+        }
+        return true
+    }
+
+    private fun exportToFile(uri: Uri) = lifecycleScope.launch {
+        runCatching {
+            val json = dnsServerViewModel.exportJson()
+            withContext(Dispatchers.IO) {
+                val outputStream = contentResolver.openOutputStream(uri)
+                    ?: throw IOException("Could not open $uri")
+                outputStream.use { it.write(json.toByteArray()) }
+            }
+        }.onSuccess {
+            toast(R.string.export_success)
+        }.onFailure { exception ->
+            Log.e(TAG, "Export failed", exception)
+            toast(R.string.export_failure)
+        }
+    }
+
+    private fun importFromFile(uri: Uri) = lifecycleScope.launch {
+        // The file may be unreadable, e.g. an offline cloud file
+        runCatching {
+            withContext(Dispatchers.IO) {
+                val inputStream = contentResolver.openInputStream(uri)
+                    ?: throw IOException("Could not open $uri")
+                inputStream.bufferedReader().use { it.readText() }
+            }
+        }.onSuccess { json ->
+            importJson(json)
+        }.onFailure { exception ->
+            Log.e(TAG, "Reading $uri failed", exception)
+            toast(R.string.import_failure)
+        }
+    }
+
+    private fun importJson(json: String) {
+        dnsServerViewModel.importJson(json) { success ->
+            toast(if (success) R.string.import_success else R.string.import_failure)
+        }
+    }
+
+    private fun handleWindowInsets() {
         ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, insets ->
             val fabMargin = (16 * resources.displayMetrics.density).roundToInt()
             val fabClearance = (56 * resources.displayMetrics.density).roundToInt() + fabMargin * 2
@@ -341,183 +210,19 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
         }
     }
 
-    private var saveResultLauncher =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            if (result.resultCode == RESULT_OK) {
-                val data: Intent? = result.data
-                data?.data?.also { uri ->
-                    lifecycleScope.launch {
-                        val jsonData =
-                            Json.encodeToString(BackupUtils.export(dnsServerViewModel, sharedPrefs))
-                        val contentResolver = applicationContext.contentResolver
-                        runCatching {
-                            withContext(Dispatchers.IO) {
-                                val outputStream = contentResolver.openOutputStream(uri)
-                                    ?: throw IOException("Could not open $uri")
-                                outputStream.use { it.write(jsonData.toByteArray()) }
-                            }
-                        }.onFailure { exception ->
-                            Log.e("EXPORT", "Export failed", exception)
-                            Toast.makeText(
-                                this@MainActivity, getString(R.string.export_failure), Toast.LENGTH_SHORT
-                            ).show()
-                        }.onSuccess {
-                            Toast.makeText(
-                                this@MainActivity, getString(R.string.export_success), Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    }
-                }
-            }
-        }
-
-    private var importResultLauncher =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            if (result.resultCode == RESULT_OK) {
-                val data: Intent? = result.data
-                data?.data?.also { uri ->
-                    val contentResolver = applicationContext.contentResolver
-                    lifecycleScope.launch {
-                        // The file may be unreadable, e.g. an offline cloud file
-                        runCatching {
-                            withContext(Dispatchers.IO) {
-                                val inputStream = contentResolver.openInputStream(uri)
-                                    ?: throw IOException("Could not open $uri")
-                                inputStream.bufferedReader().use { it.readText() }
-                            }
-                        }.onSuccess { jsonData ->
-                            importSettings(jsonData)
-                        }.onFailure { exception ->
-                            Log.e("IMPORT", "Reading $uri failed", exception)
-                            Toast.makeText(
-                                this@MainActivity, getString(R.string.import_failure), Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    }
-                }
-            }
-        }
-
-    private var permissionDialog: AlertDialog? = null
-
-    // Whether Shizuku was asked for access / used to grant the permission since this
-    // activity was created
-    private var shizukuRequested = false
-    private var shizukuGrantAttempted = false
-
-    private fun showPermissionDialog() {
-        // onResume runs again after returning from the browser, don't stack dialogs
-        if (permissionDialog?.isShowing == true) return
-
-        val dialogView = ComposeView(this).apply {
-            setContent {
-                val colorScheme = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    if (isSystemInDarkTheme())
-                        dynamicDarkColorScheme(applicationContext)
-                    else
-                        dynamicLightColorScheme(applicationContext)
-                } else {
-                    if (isSystemInDarkTheme()) {
-                        darkColorScheme()
-                    } else {
-                        lightColorScheme()
-                    }
-                }
-
-                MaterialTheme(colorScheme = colorScheme) {
-                    PermissionExplanationDialog(
-                        onDismiss = {
-                            permissionDialog?.dismiss()
-                        },
-                        onConfirm = {
-                            permissionDialog?.dismiss()
-                        }
-                    )
-                }
-            }
-        }
-
-        permissionDialog = AlertDialog.Builder(this)
-            .setView(dialogView)
-            .setCancelable(false)
-            .show()
-            .apply {
-                window?.setBackgroundDrawableResource(android.R.color.transparent)
-            }
-    }
-
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.menu_main, menu)
         return true
     }
 
-    override fun onResume() {
-        super.onResume()
-        // Run a switch-back whose alarm was delayed
-        lifecycleScope.launch(Dispatchers.IO) { AutoRevert.catchUp(applicationContext) }
-        // Check if WRITE_SECURE_SETTINGS is granted
-        if (checkSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS) == PackageManager.PERMISSION_GRANTED) {
-            // e.g. granted with adb while the app was in the background
-            permissionDialog?.dismiss()
-        } else {
-            // Check if Shizuku is available
-            if (Shizuku.pingBinder()) {
-                // check if permission is granted already
-                val isGranted = if (Shizuku.isPreV11() || Shizuku.getVersion() < 11) {
-                    checkSelfPermission(ShizukuProvider.PERMISSION) == PackageManager.PERMISSION_GRANTED
-                } else {
-                    Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
-                }
-                if (isGranted) {
-                    // Only try once per activity, a failure shows the dialog instead
-                    if (!shizukuGrantAttempted) grantPermission() else showPermissionDialog()
-                } else if (!shizukuRequested && !Shizuku.shouldShowRequestPermissionRationale()) {
-                    // Ask once per activity, otherwise every resume would show the prompt again
-                    shizukuRequested = true
-                    if (Shizuku.isPreV11() || Shizuku.getVersion() < 11) {
-                        requestPermissions(arrayOf(ShizukuProvider.PERMISSION), 1)
-                    } else {
-                        Shizuku.requestPermission(1)
-                    }
-                } else {
-                    // The user denied Shizuku access permanently, explain the other options
-                    showPermissionDialog()
-                }
-            } else {
-                showPermissionDialog()
-            }
-        }
-    }
-
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (!hasFocus) {
-            // Gets the ID of the "paste" menu item.
-            val pasteItem = binding.topAppBar.menu.findItem(R.id.import_settings_clipboard)
-
-            // If the clipboard doesn't contain data, disable the paste menu item.
-            // If it does contain data, decide whether you can handle the data.
-            pasteItem.isEnabled = when {
-                !clipboard.hasPrimaryClip() -> false
-                !(clipboard.primaryClipDescription?.hasMimeType(MIMETYPE_TEXT_PLAIN))!! -> false
-                else -> true
-
-            }
+            // Only offer pasting when the clipboard holds text
+            binding.topAppBar.menu.findItem(R.id.import_settings_clipboard).isEnabled =
+                clipboard.hasPrimaryClip() &&
+                    clipboard.primaryClipDescription?.hasMimeType(MIMETYPE_TEXT_PLAIN) == true
         }
-    }
-
-    override fun onSaveInstanceState(outState: Bundle) {
-        super.onSaveInstanceState(outState)
-        outState.putBoolean(STATE_SHIZUKU_REQUESTED, shizukuRequested)
-        outState.putBoolean(STATE_SHIZUKU_GRANT_ATTEMPTED, shizukuGrantAttempted)
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        // Recreated in onResume if still needed
-        permissionDialog?.dismiss()
-        permissionDialog = null
-        Shizuku.removeRequestPermissionResultListener(this)
     }
 
     /**
@@ -525,8 +230,7 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
      *  @param id The server id
      */
     override fun onDeleteItemClicked(id: Int) {
-        val newFragment = DeleteServerDialogFragment.newInstance(id)
-        newFragment.show(supportFragmentManager, "delete_server")
+        DeleteServerDialogFragment.newInstance(id).show(supportFragmentManager, "delete_server")
     }
 
     /**
@@ -536,12 +240,11 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
      */
     override fun onAddDialogPositiveClick(label: String?, server: String) {
         if (server.isEmpty()) {
-            Toast.makeText(this, R.string.server_length_error, Toast.LENGTH_SHORT).show()
+            toast(R.string.server_length_error)
             return
         }
-
         dnsServerViewModel.insertIfAbsent(DnsServer(0, server, label.orEmpty())) {
-            showDuplicateServerToast()
+            toast(R.string.server_exists_error)
         }
     }
 
@@ -550,13 +253,7 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
      *  @param id The server id
      */
     override fun onDeleteDialogPositiveClick(id: Int) {
-        lifecycleScope.launch {
-            // Don't switch back to a server that no longer exists
-            dnsServerViewModel.getById(id)?.let {
-                AutoRevert.cancelIfProvider(applicationContext, it.server)
-            }
-            dnsServerViewModel.delete(id)
-        }
+        dnsServerViewModel.delete(id)
     }
 
     /**
@@ -565,62 +262,22 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
      *  @param server New server address
      *  @param id The server id
      */
-    override fun onUpdateDialogPositiveClick(
-        id: Int,
-        server: String,
-        label: String?,
-        enabled: Boolean
-    ) {
+    override fun onUpdateDialogPositiveClick(id: Int, server: String, label: String?, enabled: Boolean) {
         if (server.isEmpty()) {
-            Toast.makeText(this, R.string.server_length_error, Toast.LENGTH_SHORT).show()
+            toast(R.string.server_length_error)
             return
         }
-        dnsServerViewModel.updateIfUnique(
-            id, server, label, enabled,
-            onDuplicate = { showDuplicateServerToast() },
-            onUpdated = { old ->
-                // Don't switch back to a server that was disabled or changed
-                if (old != null && (!old.server.equals(server, ignoreCase = true) || !enabled)) {
-                    AutoRevert.cancelIfProvider(applicationContext, old.server)
-                }
-            }
-        )
-    }
-
-    private fun showDuplicateServerToast() {
-        Toast.makeText(applicationContext, R.string.server_exists_error, Toast.LENGTH_SHORT).show()
-    }
-
-    private fun grantPermission() {
-        shizukuGrantAttempted = true
-        if (grantPermissionWithShizuku(this)) {
-            permissionDialog?.dismiss()
-            Toast.makeText(
-                this, R.string.shizuku_success_toast, Toast.LENGTH_SHORT
-            ).show()
-        } else {
-            Toast.makeText(
-                this, R.string.shizuku_failure_toast, Toast.LENGTH_SHORT
-            ).show()
-            showPermissionDialog()
+        dnsServerViewModel.updateIfUnique(id, server, label, enabled) {
+            toast(R.string.server_exists_error)
         }
     }
 
-    override fun onRequestPermissionResult(requestCode: Int, grantResult: Int) {
-        // Already handled, e.g. by onResume after the Shizuku dialog closed
-        if (checkSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS) == PackageManager.PERMISSION_GRANTED) {
-            return
-        }
-        if (grantResult == PackageManager.PERMISSION_GRANTED) {
-            if (!shizukuGrantAttempted) grantPermission()
-        } else {
-            showPermissionDialog()
-        }
-    }
+    // The application context, so toasts from callbacks also work after the activity is gone
+    private fun toast(@StringRes message: Int) =
+        Toast.makeText(applicationContext, message, Toast.LENGTH_SHORT).show()
 
-    companion object {
-        private const val EDIT_SERVER_TAG = "edit_server"
-        private const val STATE_SHIZUKU_REQUESTED = "shizuku_requested"
-        private const val STATE_SHIZUKU_GRANT_ATTEMPTED = "shizuku_grant_attempted"
+    private companion object {
+        const val TAG = "MainActivity"
+        const val EDIT_SERVER_TAG = "edit_server"
     }
 }

@@ -8,6 +8,7 @@ import androidx.fragment.app.DialogFragment
 import com.google.android.material.chip.Chip
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import ru.karasevm.privatednstoggle.R
+import ru.karasevm.privatednstoggle.app
 import ru.karasevm.privatednstoggle.databinding.DialogOptionsBinding
 import ru.karasevm.privatednstoggle.util.AutoRevert
 import ru.karasevm.privatednstoggle.util.PreferenceHelper
@@ -105,7 +106,7 @@ class OptionsDialogFragment : DialogFragment() {
         binding.autoRevertSwitch.setOnCheckedChangeListener { _, isChecked ->
             sharedPreferences.autoRevertEnabled = isChecked
             setDelayChipsEnabled(isChecked)
-            if (!isChecked) AutoRevert.cancel(requireContext())
+            if (!isChecked) requireContext().app.dnsController.cancelSwitchBack()
         }
     }
 }

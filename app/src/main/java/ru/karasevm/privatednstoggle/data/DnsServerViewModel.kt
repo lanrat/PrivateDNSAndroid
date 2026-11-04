@@ -5,35 +5,28 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.asLiveData
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import ru.karasevm.privatednstoggle.PrivateDNSApp
+import ru.karasevm.privatednstoggle.dns.DnsController
 import ru.karasevm.privatednstoggle.model.DnsServer
 
-class DnsServerViewModel(private val dnsServerRepository: DnsServerRepository) : ViewModel() {
+/**
+ * The server list and backups for the app's screens. Work started here finishes even if the
+ * screen is recreated meanwhile; callbacks run on the main thread.
+ */
+class DnsServerViewModel(
+    private val dnsServerRepository: DnsServerRepository,
+    private val backupManager: BackupManager,
+    private val dnsController: DnsController,
+) : ViewModel() {
 
     val allServers: LiveData<List<DnsServer>> = dnsServerRepository.allServers.asLiveData()
 
     fun getAll() = dnsServerRepository.getAll()
 
-    /** All servers as currently saved */
-    suspend fun currentServers(): List<DnsServer> = dnsServerRepository.allServers.first()
-
-    suspend fun getById(id: Int) = dnsServerRepository.getById(id)
-
-    fun insert(dnsServer: DnsServer) =
-        viewModelScope.launch {
-            dnsServerRepository.insert(dnsServer)
-        }
-
-    /** Adds the servers that are not saved yet, skipping duplicates */
-    fun insertAllIfAbsent(dnsServers: List<DnsServer>) =
-        viewModelScope.launch {
-            dnsServerRepository.insertAllIfAbsent(dnsServers)
-        }
-
     /**
      * Adds [dnsServer] unless its address is already saved, in which case [onDuplicate] is
-     * called on the main thread instead.
+     * called instead.
      */
     fun insertIfAbsent(dnsServer: DnsServer, onDuplicate: () -> Unit) =
         viewModelScope.launch {
@@ -46,8 +39,7 @@ class DnsServerViewModel(private val dnsServerRepository: DnsServerRepository) :
 
     /**
      * Updates the server with [id], unless another saved server already uses [server], in
-     * which case [onDuplicate] is called on the main thread instead. [onUpdated] gets the
-     * server as it was before the update.
+     * which case [onDuplicate] is called instead.
      */
     fun updateIfUnique(
         id: Int,
@@ -55,7 +47,6 @@ class DnsServerViewModel(private val dnsServerRepository: DnsServerRepository) :
         label: String?,
         enabled: Boolean,
         onDuplicate: () -> Unit,
-        onUpdated: (old: DnsServer?) -> Unit
     ) = viewModelScope.launch {
         val existing = dnsServerRepository.getFirstByServer(server)
         if (existing != null && existing.id != id) {
@@ -64,33 +55,38 @@ class DnsServerViewModel(private val dnsServerRepository: DnsServerRepository) :
         }
         val old = dnsServerRepository.getById(id)
         when (dnsServerRepository.update(id, server, label, null, enabled)) {
-            1 -> onUpdated(old)
+            1 -> if (old != null && (!old.server.equals(server, ignoreCase = true) || !enabled)) {
+                // Don't switch back to a server that was disabled or changed
+                dnsController.cancelSwitchBackTo(old.server)
+            }
             // Ignored by the unique index: another server took the address in the meantime
             else -> if (old != null) onDuplicate()
         }
     }
 
-    fun update(
-        id: Int,
-        server: String? = null,
-        label: String? = null,
-        sortOrder: Int? = null,
-        enabled: Boolean? = null
-    ) = viewModelScope.launch { dnsServerRepository.update(id, server, label, sortOrder, enabled) }
-
     fun move(sortOrder: Int, newSortOrder: Int, id: Int) =
         viewModelScope.launch { dnsServerRepository.move(sortOrder, newSortOrder, id) }
 
-    fun delete(id: Int) = viewModelScope.launch { dnsServerRepository.delete(id) }
+    fun delete(id: Int) = viewModelScope.launch {
+        // Don't switch back to a server that no longer exists
+        dnsServerRepository.getById(id)?.let { dnsController.cancelSwitchBackTo(it.server) }
+        dnsServerRepository.delete(id)
+    }
 
+    /** The servers and options as JSON, see [BackupManager.export] */
+    suspend fun exportJson(): String = backupManager.export()
+
+    /** Imports a backup, see [BackupManager.import]; [onResult] gets whether it worked */
+    fun importJson(json: String, onResult: (success: Boolean) -> Unit) = viewModelScope.launch {
+        onResult(backupManager.import(json))
+    }
 }
 
-class DnsServerViewModelFactory(private val dnsServerRepository: DnsServerRepository) :
-    ViewModelProvider.Factory {
+class DnsServerViewModelFactory(private val app: PrivateDNSApp) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(DnsServerViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return DnsServerViewModel(dnsServerRepository) as T
+            return DnsServerViewModel(app.repository, app.backupManager, app.dnsController) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

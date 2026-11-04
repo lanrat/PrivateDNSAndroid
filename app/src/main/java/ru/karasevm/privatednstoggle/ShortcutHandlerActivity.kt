@@ -17,12 +17,9 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import ru.karasevm.privatednstoggle.dns.DnsChange
 import ru.karasevm.privatednstoggle.util.AutoRevert
-import ru.karasevm.privatednstoggle.util.PreferenceHelper
-import ru.karasevm.privatednstoggle.util.PreferenceHelper.autoMode
-import ru.karasevm.privatednstoggle.util.PrivateDNSUtils
 import ru.karasevm.privatednstoggle.util.ShortcutActions
-import ru.karasevm.privatednstoggle.util.PreferenceHelper.allowExternalControl
 
 /**
  * Entry point for shortcuts.
@@ -33,7 +30,7 @@ import ru.karasevm.privatednstoggle.util.PreferenceHelper.allowExternalControl
  *
  * It performs the shortcut actions itself. Other apps can only reach it through the exported [EXTERNAL_ACTIVITY] alias. Requests that
  * come through the alias only change Private DNS when the user enabled
- * [PreferenceHelper.allowExternalControl]. The alias also serves
+ * [ru.karasevm.privatednstoggle.util.AppPreferences.allowExternalControl]. The alias also serves
  * [Intent.ACTION_CREATE_SHORTCUT], which only describes a shortcut and changes nothing.
  */
 class ShortcutHandlerActivity : AppCompatActivity() {
@@ -108,40 +105,27 @@ class ShortcutHandlerActivity : AppCompatActivity() {
         }
         // An alias launch means the intent came from another app, not from our own shortcuts
         val isExternal = componentName.className != ShortcutHandlerActivity::class.java.name
-        if (isExternal && !PreferenceHelper.defaultPreference(this).allowExternalControl) {
+        if (isExternal && !app.preferences.allowExternalControl) {
             Log.i(TAG, "handleShortcut: external control is disabled, ignoring $action")
-            Toast.makeText(this, R.string.external_control_disabled_toast, Toast.LENGTH_LONG)
-                .show()
+            toast(getString(R.string.external_control_disabled_toast), Toast.LENGTH_LONG)
             return
         }
-        if (!PrivateDNSUtils.checkForPermission(this)) {
-            Toast.makeText(this, R.string.permission_missing, Toast.LENGTH_SHORT).show()
-            return
+        val change = withContext(Dispatchers.IO) {
+            app.dnsController.performShortcut(action, fromOtherApp = isExternal)
         }
-
-        val repository = (application as PrivateDNSApp).repository
-        val next = ShortcutActions.nextSetting(
-            action,
-            PreferenceHelper.defaultPreference(this).autoMode,
-            PrivateDNSUtils.getPrivateMode(contentResolver),
-            PrivateDNSUtils.getPrivateProvider(contentResolver),
-            repository
-        )
-        if (next == null) {
+        when (change) {
+            DnsChange.PermissionMissing -> toast(getString(R.string.permission_missing))
             // Private mode is needed, but there is no enabled server to use
-            Toast.makeText(this, R.string.no_servers_added, Toast.LENGTH_SHORT).show()
-            return
-        }
-        try {
-            withContext(Dispatchers.IO) {
-                AutoRevert.applyUserChange(this@ShortcutHandlerActivity, next, fromOtherApp = isExternal)
+            DnsChange.NoEnabledServer -> toast(getString(R.string.no_servers_added))
+            is DnsChange.Applied -> change.switchBackAt?.let {
+                toast(AutoRevert.scheduledMessage(this, it), Toast.LENGTH_LONG)
             }
-        } catch (e: SecurityException) {
-            // The permission was revoked after the check above
-            Log.w(TAG, "handleShortcut: could not change settings", e)
-            Toast.makeText(this, R.string.permission_missing, Toast.LENGTH_SHORT).show()
+            DnsChange.NothingToSwitchBackTo -> Unit
         }
     }
+
+    private fun toast(message: String, duration: Int = Toast.LENGTH_SHORT) =
+        Toast.makeText(this, message, duration).show()
 
     /**
      * Shows the list of shortcuts for [Intent.ACTION_CREATE_SHORTCUT] and returns the chosen one.
