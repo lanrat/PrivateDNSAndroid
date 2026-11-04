@@ -121,7 +121,8 @@ class DNSServerDialogFragment : DialogFragment() {
 
     override fun onDestroy() {
         super.onDestroy()
-        activity?.finish()
+        // On a configuration change the activity restores this dialog instead
+        if (activity?.isChangingConfigurations != true) activity?.finish()
     }
 
     companion object {

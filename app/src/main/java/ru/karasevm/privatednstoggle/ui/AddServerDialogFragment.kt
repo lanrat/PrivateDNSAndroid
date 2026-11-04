@@ -127,10 +127,19 @@ class AddServerDialogFragment : DialogFragment() {
         } ?: throw IllegalStateException("Activity cannot be null")
     }
 
+    private var isTextWatcherAdded = false
+
     override fun onStart() {
         super.onStart()
         val button = ((dialog) as AlertDialog).getButton(DialogInterface.BUTTON_POSITIVE)
-        button.isEnabled = isValidServer(binding.editTextServerAddr.text.toString().trim())
+        // onStart runs again after returning from the background, only set up once
+        if (isTextWatcherAdded) return
+        isTextWatcherAdded = true
+        // A new server starts out empty, so it can't be added yet. An existing server can
+        // always be saved, e.g. to change only its label.
+        if (dnsServer == null) {
+            button.isEnabled = isValidServer(binding.editTextServerAddr.text.toString().trim())
+        }
         binding.editTextServerAddr.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
 

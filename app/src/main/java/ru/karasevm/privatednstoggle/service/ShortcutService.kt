@@ -100,7 +100,13 @@ class ShortcutService : Service() {
             showToast(R.string.no_servers_added)
             return
         }
-        PrivateDNSUtils.applyDnsSetting(contentResolver, next)
+        try {
+            PrivateDNSUtils.applyDnsSetting(contentResolver, next)
+        } catch (e: SecurityException) {
+            // The permission was revoked after the check above
+            Log.w(TAG, "handleAction: could not change settings", e)
+            showToast(R.string.permission_missing)
+        }
     }
 
     private suspend fun showToast(@StringRes message: Int) = withContext(Dispatchers.Main) {

@@ -13,6 +13,7 @@ import android.service.quicksettings.TileService
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -36,6 +37,7 @@ class DnsTileService : TileService() {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val sharedPreferences by lazy { PreferenceHelper.defaultPreference(this) }
     private var isObserverRegistered = false
+    private var refreshJob: Job? = null
 
     /**
      * Refreshes the tile whenever the system Private DNS settings change while the tile is
@@ -70,7 +72,8 @@ class DnsTileService : TileService() {
                 return@launch
             }
             PrivateDNSUtils.applyDnsSetting(contentResolver, next)
-            refreshTile()
+            // The settings observer refreshes too, but only if the value actually changed
+            withContext(Dispatchers.Main) { refreshTile() }
         }
     }
 
@@ -107,9 +110,16 @@ class DnsTileService : TileService() {
     }
 
     /**
-     *  Refreshes the state of the tile from the system settings
+     *  Refreshes the state of the tile from the system settings.
+     *  Tile updates run on the main thread and a newer refresh cancels a pending older one,
+     *  so a slow server lookup can't overwrite a newer state.
      */
     private fun refreshTile() {
+        refreshJob?.cancel()
+        refreshJob = scope.launch(Dispatchers.Main) { updateTileFromSettings() }
+    }
+
+    private suspend fun updateTileFromSettings() {
         val isPermissionGranted = checkForPermission(this)
         val dnsMode = PrivateDNSUtils.getPrivateMode(contentResolver)
         when (dnsMode?.lowercase()) {
@@ -130,18 +140,18 @@ class DnsTileService : TileService() {
             }
 
             DNS_MODE_PRIVATE -> {
-                scope.launch {
-                    val activeAddress = PrivateDNSUtils.getPrivateProvider(contentResolver)
-                    val dnsServer = activeAddress?.let { repository.getFirstByServer(it) }
-                    setTile(
-                        if (!isPermissionGranted) Tile.STATE_UNAVAILABLE else Tile.STATE_ACTIVE,
-                        // display server address if either there is no label or the server is not known
-                        dnsServer?.label?.ifBlank { null }
-                            ?: activeAddress
-                            ?: getString(R.string.dns_unknown),
-                        R.drawable.ic_private_black_24dp
-                    )
+                val activeAddress = PrivateDNSUtils.getPrivateProvider(contentResolver)
+                val dnsServer = activeAddress?.let {
+                    withContext(Dispatchers.IO) { repository.getFirstByServer(it) }
                 }
+                setTile(
+                    if (!isPermissionGranted) Tile.STATE_UNAVAILABLE else Tile.STATE_ACTIVE,
+                    // display server address if either there is no label or the server is not known
+                    dnsServer?.label?.ifBlank { null }
+                        ?: activeAddress
+                        ?: getString(R.string.dns_unknown),
+                    R.drawable.ic_private_black_24dp
+                )
             }
 
             else -> {

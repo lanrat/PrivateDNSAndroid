@@ -59,7 +59,7 @@ Other apps, such as Tasker or MacroDroid, can trigger the same actions **only af
 - Action: `ru.karasevm.privatednstoggle.action.SHORTCUT`
 - Data: `privatednstoggle://do_cycle`, `privatednstoggle://switch_mode`, `privatednstoggle://turn_on` or `privatednstoggle://turn_off`
 
-For example, with adb:
+Debug builds use the package `ru.karasevm.privatednstoggle.dev` (the class name stays the same). For example, with adb:
 ```
 ./adb shell am start -n ru.karasevm.privatednstoggle/.ExternalShortcutHandlerActivity -a ru.karasevm.privatednstoggle.action.SHORTCUT -d privatednstoggle://turn_off
 ```

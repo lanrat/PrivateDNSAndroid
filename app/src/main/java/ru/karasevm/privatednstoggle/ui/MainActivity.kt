@@ -179,6 +179,8 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        shizukuRequested = savedInstanceState?.getBoolean(STATE_SHIZUKU_REQUESTED) == true
+        shizukuGrantAttempted = savedInstanceState?.getBoolean(STATE_SHIZUKU_GRANT_ATTEMPTED) == true
 
         Shizuku.addRequestPermissionResultListener(this)
 
@@ -476,8 +478,17 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
         }
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean(STATE_SHIZUKU_REQUESTED, shizukuRequested)
+        outState.putBoolean(STATE_SHIZUKU_GRANT_ATTEMPTED, shizukuGrantAttempted)
+    }
+
     override fun onDestroy() {
         super.onDestroy()
+        // Recreated in onResume if still needed
+        permissionDialog?.dismiss()
+        permissionDialog = null
         Shizuku.removeRequestPermissionResultListener(this)
     }
 
@@ -560,5 +571,10 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
         } else {
             showPermissionDialog()
         }
+    }
+
+    companion object {
+        private const val STATE_SHIZUKU_REQUESTED = "shizuku_requested"
+        private const val STATE_SHIZUKU_GRANT_ATTEMPTED = "shizuku_grant_attempted"
     }
 }
