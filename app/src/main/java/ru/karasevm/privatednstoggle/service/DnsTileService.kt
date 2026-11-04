@@ -72,7 +72,13 @@ class DnsTileService : TileService() {
                 withContext(Dispatchers.Main) { openApp() }
                 return@launch
             }
-            AutoRevert.applyUserChange(this@DnsTileService, next, fromOtherApp = false)
+            try {
+                AutoRevert.applyUserChange(this@DnsTileService, next, fromOtherApp = false)
+            } catch (e: SecurityException) {
+                // The permission was revoked after the check in onClick, the refresh below
+                // shows the tile as unavailable
+                Log.w(TAG, "cycleState: could not change settings", e)
+            }
             // The settings observer refreshes too, but only if the value actually changed
             withContext(Dispatchers.Main) { refreshTile() }
         }
@@ -128,7 +134,7 @@ class DnsTileService : TileService() {
         val revertSubtitle = pendingAt?.let {
             getString(R.string.auto_revert_tile_subtitle, AutoRevert.formatTime(this, it))
         }
-        when (dnsMode?.lowercase()) {
+        when (dnsMode.lowercase()) {
             DNS_MODE_OFF -> {
                 setTile(
                     if (!isPermissionGranted) Tile.STATE_UNAVAILABLE else Tile.STATE_INACTIVE,

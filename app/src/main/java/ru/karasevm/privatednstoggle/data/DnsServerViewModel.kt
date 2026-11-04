@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.asLiveData
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import ru.karasevm.privatednstoggle.model.DnsServer
 
@@ -13,6 +14,9 @@ class DnsServerViewModel(private val dnsServerRepository: DnsServerRepository) :
     val allServers: LiveData<List<DnsServer>> = dnsServerRepository.allServers.asLiveData()
 
     fun getAll() = dnsServerRepository.getAll()
+
+    /** All servers as currently saved */
+    suspend fun currentServers(): List<DnsServer> = dnsServerRepository.allServers.first()
 
     suspend fun getById(id: Int) = dnsServerRepository.getById(id)
 
@@ -26,6 +30,42 @@ class DnsServerViewModel(private val dnsServerRepository: DnsServerRepository) :
         viewModelScope.launch {
             dnsServerRepository.insertAllIfAbsent(dnsServers)
         }
+
+    /**
+     * Adds [dnsServer] unless its address is already saved, in which case [onDuplicate] is
+     * called on the main thread instead.
+     */
+    fun insertIfAbsent(dnsServer: DnsServer, onDuplicate: () -> Unit) =
+        viewModelScope.launch {
+            if (dnsServerRepository.getFirstByServer(dnsServer.server) != null) {
+                onDuplicate()
+            } else {
+                dnsServerRepository.insert(dnsServer)
+            }
+        }
+
+    /**
+     * Updates the server with [id], unless another saved server already uses [server], in
+     * which case [onDuplicate] is called on the main thread instead. [onUpdated] gets the
+     * server as it was before the update.
+     */
+    fun updateIfUnique(
+        id: Int,
+        server: String,
+        label: String?,
+        enabled: Boolean,
+        onDuplicate: () -> Unit,
+        onUpdated: (old: DnsServer?) -> Unit
+    ) = viewModelScope.launch {
+        val existing = dnsServerRepository.getFirstByServer(server)
+        if (existing != null && existing.id != id) {
+            onDuplicate()
+            return@launch
+        }
+        val old = dnsServerRepository.getById(id)
+        dnsServerRepository.update(id, server, label, null, enabled)
+        onUpdated(old)
+    }
 
     fun update(
         id: Int,

@@ -41,6 +41,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import rikka.shizuku.Shizuku
 import rikka.shizuku.ShizukuProvider
@@ -56,6 +57,7 @@ import ru.karasevm.privatednstoggle.util.PreferenceHelper
 import ru.karasevm.privatednstoggle.util.PreferenceHelper.dns_servers
 import ru.karasevm.privatednstoggle.util.ShizukuUtil.grantPermissionWithShizuku
 import kotlin.math.roundToInt
+import java.io.IOException
 
 
 class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogListener,
@@ -213,17 +215,24 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
             }
         }
         adapter.onItemClick = { id ->
-            dnsServerViewModel.viewModelScope.launch {
-                val server = dnsServerViewModel.getById(id)
-                if (server != null) {
-                    val newFragment =
-                        AddServerDialogFragment.newInstance(server)
-                    newFragment.show(supportFragmentManager, "edit_server")
-                }
+            // Synchronous, so the dialog can't be shown after the activity was stopped, and
+            // a double tap doesn't open two
+            val server = adapter.getItem(id)
+            if (server != null && supportFragmentManager.findFragmentByTag(EDIT_SERVER_TAG) == null) {
+                AddServerDialogFragment.newInstance(server)
+                    .show(supportFragmentManager, EDIT_SERVER_TAG)
             }
         }
         adapter.onDragStart = { viewHolder ->
             itemTouchHelper.startDrag(viewHolder)
+        }
+        adapter.onMove = { from, to, id ->
+            adapter.onItemMove(from, to)
+            // Rebind both rows so their move actions match their new positions
+            adapter.notifyItemChanged(from)
+            adapter.notifyItemChanged(to)
+            // Positions match sortOrder, as for drag and drop
+            dnsServerViewModel.move(from, to, id)
         }
         binding.floatingActionButton.setOnClickListener {
             val newFragment = AddServerDialogFragment.newInstance(null)
@@ -244,7 +253,7 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
                 }
 
                 R.id.export_settings_clipboard -> {
-                    dnsServerViewModel.viewModelScope.launch {
+                    lifecycleScope.launch {
                         val data = BackupUtils.export(dnsServerViewModel, sharedPrefs)
                         val jsonData = Json.encodeToString(data)
                         clipboard.setPrimaryClip(ClipData.newPlainText("", jsonData))
@@ -258,7 +267,7 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
 
                 R.id.export_settings_share -> {
                     val activityContext = this
-                    dnsServerViewModel.viewModelScope.launch {
+                    lifecycleScope.launch {
                         val data = BackupUtils.export(dnsServerViewModel, sharedPrefs)
                         val jsonData = Json.encodeToString(data)
                         ShareCompat.IntentBuilder(activityContext).setText(jsonData)
@@ -269,15 +278,12 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
                 }
 
                 R.id.export_settings_file -> {
-
-                    dnsServerViewModel.viewModelScope.launch {
-                        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-                            addCategory(Intent.CATEGORY_OPENABLE)
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_TITLE, "private-dns-export")
-                        }
-                        saveResultLauncher.launch(intent)
+                    val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                        addCategory(Intent.CATEGORY_OPENABLE)
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TITLE, "private-dns-export")
                     }
+                    saveResultLauncher.launch(intent)
                     true
                 }
 
@@ -340,22 +346,26 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
             if (result.resultCode == RESULT_OK) {
                 val data: Intent? = result.data
                 data?.data?.also { uri ->
-                    val jsonData =
-                        Json.encodeToString(BackupUtils.export(dnsServerViewModel, sharedPrefs))
-                    val contentResolver = applicationContext.contentResolver
-                    runCatching {
-                        contentResolver.openOutputStream(uri)?.use { outputStream ->
-                            outputStream.write(jsonData.toByteArray())
+                    lifecycleScope.launch {
+                        val jsonData =
+                            Json.encodeToString(BackupUtils.export(dnsServerViewModel, sharedPrefs))
+                        val contentResolver = applicationContext.contentResolver
+                        runCatching {
+                            withContext(Dispatchers.IO) {
+                                val outputStream = contentResolver.openOutputStream(uri)
+                                    ?: throw IOException("Could not open $uri")
+                                outputStream.use { it.write(jsonData.toByteArray()) }
+                            }
+                        }.onFailure { exception ->
+                            Log.e("EXPORT", "Export failed", exception)
+                            Toast.makeText(
+                                this@MainActivity, getString(R.string.export_failure), Toast.LENGTH_SHORT
+                            ).show()
+                        }.onSuccess {
+                            Toast.makeText(
+                                this@MainActivity, getString(R.string.export_success), Toast.LENGTH_SHORT
+                            ).show()
                         }
-                    }.onFailure { exception ->
-                        Log.e("EXPORT", "Export failed", exception)
-                        Toast.makeText(
-                            this, getString(R.string.export_failure), Toast.LENGTH_SHORT
-                        ).show()
-                    }.onSuccess {
-                        Toast.makeText(
-                            this, getString(R.string.export_success), Toast.LENGTH_SHORT
-                        ).show()
                     }
                 }
             }
@@ -367,9 +377,22 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
                 val data: Intent? = result.data
                 data?.data?.also { uri ->
                     val contentResolver = applicationContext.contentResolver
-                    contentResolver.openInputStream(uri)?.use { inputStream ->
-                        val jsonData = inputStream.bufferedReader().use { it.readText() }
-                        importSettings(jsonData)
+                    lifecycleScope.launch {
+                        // The file may be unreadable, e.g. an offline cloud file
+                        runCatching {
+                            withContext(Dispatchers.IO) {
+                                val inputStream = contentResolver.openInputStream(uri)
+                                    ?: throw IOException("Could not open $uri")
+                                inputStream.bufferedReader().use { it.readText() }
+                            }
+                        }.onSuccess { jsonData ->
+                            importSettings(jsonData)
+                        }.onFailure { exception ->
+                            Log.e("IMPORT", "Reading $uri failed", exception)
+                            Toast.makeText(
+                                this@MainActivity, getString(R.string.import_failure), Toast.LENGTH_SHORT
+                            ).show()
+                        }
                     }
                 }
             }
@@ -517,10 +540,8 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
             return
         }
 
-        if (label.isNullOrEmpty()) {
-            dnsServerViewModel.insert(DnsServer(0, server))
-        } else {
-            dnsServerViewModel.insert(DnsServer(0, server, label))
+        dnsServerViewModel.insertIfAbsent(DnsServer(0, server, label.orEmpty())) {
+            showDuplicateServerToast()
         }
     }
 
@@ -554,14 +575,20 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
             Toast.makeText(this, R.string.server_length_error, Toast.LENGTH_SHORT).show()
             return
         }
-        lifecycleScope.launch {
-            // Don't switch back to a server that was disabled or changed
-            val old = dnsServerViewModel.getById(id)
-            if (old != null && (old.server != server || !enabled)) {
-                AutoRevert.cancelIfProvider(applicationContext, old.server)
+        dnsServerViewModel.updateIfUnique(
+            id, server, label, enabled,
+            onDuplicate = { showDuplicateServerToast() },
+            onUpdated = { old ->
+                // Don't switch back to a server that was disabled or changed
+                if (old != null && (old.server != server || !enabled)) {
+                    AutoRevert.cancelIfProvider(applicationContext, old.server)
+                }
             }
-            dnsServerViewModel.update(id, server, label, null, enabled)
-        }
+        )
+    }
+
+    private fun showDuplicateServerToast() {
+        Toast.makeText(applicationContext, R.string.server_exists_error, Toast.LENGTH_SHORT).show()
     }
 
     private fun grantPermission() {
@@ -592,6 +619,7 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
     }
 
     companion object {
+        private const val EDIT_SERVER_TAG = "edit_server"
         private const val STATE_SHIZUKU_REQUESTED = "shizuku_requested"
         private const val STATE_SHIZUKU_GRANT_ATTEMPTED = "shizuku_grant_attempted"
     }

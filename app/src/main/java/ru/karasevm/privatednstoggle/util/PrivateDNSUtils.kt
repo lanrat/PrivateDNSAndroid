@@ -35,6 +35,7 @@ object PrivateDNSUtils {
 
     private const val PRIVATE_DNS_MODE = "private_dns_mode"
     private const val PRIVATE_DNS_PROVIDER = "private_dns_specifier"
+    private const val PRIVATE_DNS_DEFAULT_MODE = "private_dns_default_mode"
 
     /** Content URI of the system dns mode setting, for observing changes */
     val PRIVATE_DNS_MODE_URI: Uri get() = Settings.Global.getUriFor(PRIVATE_DNS_MODE)
@@ -42,9 +43,17 @@ object PrivateDNSUtils {
     /** Content URI of the system dns provider setting, for observing changes */
     val PRIVATE_DNS_PROVIDER_URI: Uri get() = Settings.Global.getUriFor(PRIVATE_DNS_PROVIDER)
 
-    // Gets the system dns mode
-    fun getPrivateMode(contentResolver: ContentResolver): String? {
-        return Settings.Global.getString(contentResolver, PRIVATE_DNS_MODE)
+    /**
+     * Gets the system dns mode the way Android resolves it: when private_dns_mode was never
+     * set (common on new devices), the device's default mode applies, and without one
+     * opportunistic (auto). Before, the tile showed "Unknown" in that state.
+     */
+    fun getPrivateMode(contentResolver: ContentResolver): String {
+        return Settings.Global.getString(contentResolver, PRIVATE_DNS_MODE)?.ifBlank { null }
+            // A hidden setting; on Android 12+ reading one that isn't marked readable throws
+            ?: runCatching { Settings.Global.getString(contentResolver, PRIVATE_DNS_DEFAULT_MODE) }
+                .getOrNull()?.ifBlank { null }
+            ?: DNS_MODE_AUTO
     }
 
     // Gets the system dns provider

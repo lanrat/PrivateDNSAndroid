@@ -10,10 +10,10 @@ import android.text.TextWatcher
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.common.net.InternetDomainName
 import ru.karasevm.privatednstoggle.R
 import ru.karasevm.privatednstoggle.databinding.DialogAddBinding
 import ru.karasevm.privatednstoggle.model.DnsServer
+import ru.karasevm.privatednstoggle.util.ServerValidation
 
 
 class AddServerDialogFragment : DialogFragment() {
@@ -135,11 +135,8 @@ class AddServerDialogFragment : DialogFragment() {
         // onStart runs again after returning from the background, only set up once
         if (isTextWatcherAdded) return
         isTextWatcherAdded = true
-        // A new server starts out empty, so it can't be added yet. An existing server can
-        // always be saved, e.g. to change only its label.
-        if (dnsServer == null) {
-            button.isEnabled = isValidServer(binding.editTextServerAddr.text.toString().trim())
-        }
+        // Also covers text restored after a configuration change, which the watcher doesn't see
+        button.isEnabled = isValidServer(binding.editTextServerAddr.text.toString().trim())
         binding.editTextServerAddr.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
 
@@ -157,9 +154,7 @@ class AddServerDialogFragment : DialogFragment() {
         })
     }
 
-    private fun isValidServer(str: String): Boolean {
-        return InternetDomainName.isValid(str)
-    }
+    private fun isValidServer(str: String): Boolean = ServerValidation.isValidHostname(str)
 
     companion object {
         private const val ARG_ID = "id"

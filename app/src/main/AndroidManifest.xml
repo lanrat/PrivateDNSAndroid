@@ -88,6 +88,9 @@
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <!-- The app's own alarm. Explicit intents match the filter too, as newer
+                     Android versions are starting to require. -->
+                <action android:name="ru.karasevm.privatednstoggle.action.AUTO_REVERT" />
             </intent-filter>
         </receiver>
 

@@ -18,6 +18,7 @@
     <string name="delete_message">Are you sure you want to delete server?</string>
     <string name="delete">Delete</string>
     <string name="server_length_error">Server address cannot be empty</string>
+    <string name="server_exists_error">This server is already in the list</string>
     <string name="add_edittext_label_hint">DNS server Label (Optional)</string>
     <string name="add_edittext_hint">DNS server address</string>
     <string name="options">Options</string>
@@ -33,6 +34,8 @@
     <string name="set_to_provider_toast">Private DNS set to %1$s</string>
     <string name="require_unlock_setting">Require unlocking the device to change server</string>
     <string name="a11y_drag_handle">Drag handle</string>
+    <string name="a11y_move_up">Move up</string>
+    <string name="a11y_move_down">Move down</string>
     <string name="menu_import">Import</string>
     <string name="menu_export">Export</string>
     <string name="import_success">Imported</string>

@@ -3,6 +3,7 @@ package ru.karasevm.privatednstoggle.ui
 import android.app.Dialog
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
@@ -94,8 +95,7 @@ class DNSServerDialogFragment : DialogFragment() {
                 AUTO_ID -> DnsSetting(PrivateDNSUtils.DNS_MODE_AUTO, null)
                 else -> server?.let { DnsSetting(PrivateDNSUtils.DNS_MODE_PRIVATE, it.server) }
             }
-            if (next != null) {
-                AutoRevert.applyUserChange(requireContext(), next, fromOtherApp = false)
+            if (next != null && applySafely { AutoRevert.applyUserChange(requireContext(), next, fromOtherApp = false) }) {
                 val message = when (id) {
                     OFF_ID -> getString(R.string.set_to_off_toast)
                     AUTO_ID -> getString(R.string.set_to_auto_toast)
@@ -115,6 +115,21 @@ class DNSServerDialogFragment : DialogFragment() {
     private var offForDialog: AlertDialog? = null
 
     /**
+     * Runs [change], showing a toast instead of crashing if the permission was revoked since
+     * the dialog opened.
+     *
+     * @return whether the change was made
+     */
+    private fun applySafely(change: () -> Unit): Boolean = try {
+        change()
+        true
+    } catch (e: SecurityException) {
+        Log.w(TAG, "could not change settings", e)
+        Toast.makeText(context, R.string.permission_missing, Toast.LENGTH_SHORT).show()
+        false
+    }
+
+    /**
      * Asks how long to turn Private DNS off for, then does it and closes the picker.
      */
     private fun showOffForPicker() {
@@ -122,7 +137,7 @@ class DNSServerDialogFragment : DialogFragment() {
         offForDialog = MaterialAlertDialogBuilder(requireContext())
             .setTitle(R.string.off_for_title)
             .setItems(presets.map { AutoRevert.formatDuration(it) }.toTypedArray()) { _, which ->
-                AutoRevert.turnOffFor(requireContext(), presets[which])
+                applySafely { AutoRevert.turnOffFor(requireContext(), presets[which]) }
                 dismiss()
             }
             .setNegativeButton(R.string.cancel, null)

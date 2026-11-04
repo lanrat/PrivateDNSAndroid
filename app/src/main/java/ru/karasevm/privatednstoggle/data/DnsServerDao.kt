@@ -57,7 +57,8 @@ interface DnsServerDao {
     @Query("UPDATE dns_servers SET server = :server WHERE id = :id")
     suspend fun updateServer(id: Int, server: String)
 
-    @Query("UPDATE dns_servers " +
+    // A duplicate address is rejected by the UI first; IGNORE keeps a race from crashing
+    @Query("UPDATE OR IGNORE dns_servers " +
             "SET server = COALESCE(:server, server), " +
             "    label = COALESCE(:label, label), " +
             "    sortOrder = COALESCE(:sortOrder, sortOrder), " +
@@ -77,7 +78,8 @@ interface DnsServerDao {
         update(id, null, null, newSortOrder, null)
     }
 
-    @Query("INSERT INTO dns_servers(server, label, sortOrder, enabled) " +
+    // Duplicates are rejected by the UI and the unique index; IGNORE keeps a race from crashing
+    @Query("INSERT OR IGNORE INTO dns_servers(server, label, sortOrder, enabled) " +
             "VALUES(:server, :label, COALESCE((SELECT MAX(sortOrder) + 1 FROM dns_servers), 0), :enabled)")
     suspend fun insert(server: String, label: String, enabled: Boolean)
 

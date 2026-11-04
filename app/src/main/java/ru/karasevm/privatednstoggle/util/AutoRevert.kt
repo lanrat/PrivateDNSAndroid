@@ -108,7 +108,7 @@ object AutoRevert {
         val scheduledAt = synchronized(lock) {
             val contentResolver = context.contentResolver
             val previous = DnsSetting(
-                PrivateDNSUtils.getPrivateMode(contentResolver).orEmpty(),
+                PrivateDNSUtils.getPrivateMode(contentResolver),
                 PrivateDNSUtils.getPrivateProvider(contentResolver)
             )
             PrivateDNSUtils.applyDnsSetting(contentResolver, next)

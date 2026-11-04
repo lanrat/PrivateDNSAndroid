@@ -50,6 +50,9 @@ shizuku-provider = { module = "dev.rikka.shizuku:provider", version.ref = "shizu
 
 # Testing
 junit = { module = "junit:junit", version.ref = "junit" }
+# Real SQLite on the JVM, to test database migrations without a device. Keep in step with the
+# androidx.sqlite version Room uses.
+androidx-sqlite-bundled-jvm = { module = "androidx.sqlite:sqlite-bundled-jvm", version = "2.6.2" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinx-coroutines" }
 
 [plugins]

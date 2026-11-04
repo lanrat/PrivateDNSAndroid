@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import ru.karasevm.privatednstoggle.data.DnsServerDao
 import ru.karasevm.privatednstoggle.model.DnsServer
 
-@Database(entities = [DnsServer::class], version = 1, exportSchema = true)
+@Database(entities = [DnsServer::class], version = 2, exportSchema = true)
 abstract class DnsServerRoomDatabase : RoomDatabase() {
 
     abstract fun dnsServerDao(): DnsServerDao
@@ -25,7 +25,7 @@ abstract class DnsServerRoomDatabase : RoomDatabase() {
                     context.applicationContext,
                     DnsServerRoomDatabase::class.java,
                     "dns_server_database"
-                ).build()
+                ).addMigrations(MIGRATION_1_2).build()
                 INSTANCE = instance
                 return instance
             }

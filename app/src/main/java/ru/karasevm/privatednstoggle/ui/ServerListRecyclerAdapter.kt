@@ -7,6 +7,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.core.view.ViewCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
 import ru.karasevm.privatednstoggle.R
@@ -30,6 +31,12 @@ class ServerListRecyclerAdapter(private val showDragHandle: Boolean) :
 
     var onItemClick: ((Int) -> Unit)? = null
     var onDragStart: ((DnsServerViewHolder) -> Unit)? = null
+
+    /**
+     * Called to move a server by one position without dragging, for accessibility services
+     * (TalkBack, switch access). Gets the old and new position and the server id.
+     */
+    var onMove: ((fromPosition: Int, toPosition: Int, id: Int) -> Unit)? = null
     private var items: MutableList<DnsServer> = mutableListOf()
 
     @SuppressLint("ClickableViewAccessibility")
@@ -58,8 +65,40 @@ class ServerListRecyclerAdapter(private val showDragHandle: Boolean) :
                 }
                 return@setOnTouchListener true
             }
+            updateMoveActions(holder, position)
         }
     }
+
+    /**
+     * Replaces the row's "move up" / "move down" accessibility actions to match [position]
+     */
+    private fun updateMoveActions(holder: DnsServerViewHolder, position: Int) {
+        val view = holder.itemView
+        holder.moveActionIds.forEach { ViewCompat.removeAccessibilityAction(view, it) }
+        holder.moveActionIds.clear()
+        val context = view.context
+        if (position > 0) {
+            holder.moveActionIds += ViewCompat.addAccessibilityAction(
+                view, context.getString(R.string.a11y_move_up)
+            ) { _, _ -> moveBy(holder, -1) }
+        }
+        if (position < items.size - 1) {
+            holder.moveActionIds += ViewCompat.addAccessibilityAction(
+                view, context.getString(R.string.a11y_move_down)
+            ) { _, _ -> moveBy(holder, 1) }
+        }
+    }
+
+    private fun moveBy(holder: DnsServerViewHolder, offset: Int): Boolean {
+        val from = holder.bindingAdapterPosition
+        val to = from + offset
+        if (from == RecyclerView.NO_POSITION || to !in items.indices) return false
+        onMove?.invoke(from, to, holder.id)
+        return true
+    }
+
+    /** Gets the server with [id] as currently shown, or null */
+    fun getItem(id: Int): DnsServer? = items.firstOrNull { it.id == id }
 
     /**
      *  Update server position in memory
@@ -113,6 +152,7 @@ class ServerListRecyclerAdapter(private val showDragHandle: Boolean) :
         val serverTextView: TextView = view.findViewById(R.id.textView)
         val dragHandle: ImageView = itemView.findViewById(R.id.dragHandle)
         var id = 0
+        val moveActionIds = mutableListOf<Int>()
 
         init {
             view.setOnClickListener {

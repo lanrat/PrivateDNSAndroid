@@ -28,9 +28,11 @@ object BackupUtils {
      *  @param viewModel View model
      *  @param sharedPreferences Shared preferences
      */
-    fun export(viewModel: DnsServerViewModel, sharedPreferences: SharedPreferences): Backup {
+    suspend fun export(viewModel: DnsServerViewModel, sharedPreferences: SharedPreferences): Backup {
         return Backup(
-            viewModel.allServers.value ?: listOf(),
+            // From the database: the LiveData may not have loaded yet, e.g. when the activity
+            // was recreated while the file picker was open, which exported an empty list
+            viewModel.currentServers(),
             sharedPreferences.autoMode,
             sharedPreferences.requireUnlock
         )
@@ -47,7 +49,7 @@ object BackupUtils {
         sharedPreferences: SharedPreferences
     ) {
         // Servers that are already saved are skipped, so importing twice doesn't duplicate them
-        viewModel.insertAllIfAbsent(backup.dnsServers)
+        viewModel.insertAllIfAbsent(validServers(backup.dnsServers))
         sharedPreferences.autoMode = backup.autoMode ?: sharedPreferences.autoMode
         sharedPreferences.requireUnlock = backup.requireUnlock ?: sharedPreferences.requireUnlock
     }
@@ -71,8 +73,17 @@ object BackupUtils {
                 DnsServer(0, server, "")
             }
         }
-        viewModel.insertAllIfAbsent(servers)
+        viewModel.insertAllIfAbsent(validServers(servers))
         sharedPreferences.autoMode = legacyBackup.autoMode?: 0
         sharedPreferences.requireUnlock = legacyBackup.requireUnlock == true
     }
+
+    /**
+     * Trims the addresses and drops servers that can't be used as a Private DNS hostname,
+     * e.g. URLs or IP addresses in a hand-edited backup, which would otherwise be written to
+     * the system setting and break DNS.
+     */
+    fun validServers(servers: List<DnsServer>): List<DnsServer> = servers
+        .map { it.copy(server = it.server.trim(), label = it.label.trim()) }
+        .filter { ServerValidation.isValidHostname(it.server) }
 }

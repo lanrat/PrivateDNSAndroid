@@ -2,13 +2,15 @@ package ru.karasevm.privatednstoggle.model
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 // All fields must have default values for proper deserialization
 @Serializable
-@Entity(tableName = "dns_servers")
+// Addresses are unique, see MIGRATION_1_2
+@Entity(tableName = "dns_servers", indices = [Index(value = ["server"], unique = true)])
 data class DnsServer(
     @SerialName("id")
     @PrimaryKey(autoGenerate = true)
