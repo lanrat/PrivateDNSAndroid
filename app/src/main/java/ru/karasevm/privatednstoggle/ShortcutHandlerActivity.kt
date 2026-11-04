@@ -12,9 +12,16 @@ import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
 import androidx.core.net.toUri
+import androidx.lifecycle.lifecycleScope
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import ru.karasevm.privatednstoggle.service.ShortcutService
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import ru.karasevm.privatednstoggle.util.AutoRevert
 import ru.karasevm.privatednstoggle.util.PreferenceHelper
+import ru.karasevm.privatednstoggle.util.PreferenceHelper.autoMode
+import ru.karasevm.privatednstoggle.util.PrivateDNSUtils
+import ru.karasevm.privatednstoggle.util.ShortcutActions
 import ru.karasevm.privatednstoggle.util.PreferenceHelper.allowExternalControl
 
 /**
@@ -24,7 +31,7 @@ import ru.karasevm.privatednstoggle.util.PreferenceHelper.allowExternalControl
  * through the launcher's shortcut picker) still reach it, because the launcher starts shortcuts
  * with the publishing app's identity.
  *
- * Other apps can only reach it through the exported [EXTERNAL_ACTIVITY] alias. Requests that
+ * It performs the shortcut actions itself. Other apps can only reach it through the exported [EXTERNAL_ACTIVITY] alias. Requests that
  * come through the alias only change Private DNS when the user enabled
  * [PreferenceHelper.allowExternalControl]. The alias also serves
  * [Intent.ACTION_CREATE_SHORTCUT], which only describes a shortcut and changes nothing.
@@ -41,22 +48,22 @@ class ShortcutHandlerActivity : AppCompatActivity() {
 
     private val shortcutOptions = listOf(
         ShortcutOption(
-            ShortcutService.ACTION_DO_CYCLE,
+            ShortcutActions.ACTION_DO_CYCLE,
             R.string.shortcut_do_cycle,
             R.drawable.ic_shortcut_next_24dp
         ),
         ShortcutOption(
-            ShortcutService.ACTION_SWITCH_MODE,
+            ShortcutActions.ACTION_SWITCH_MODE,
             R.string.shortcut_switch_mode,
             R.drawable.ic_shortcut_mode_24dp
         ),
         ShortcutOption(
-            ShortcutService.ACTION_TURN_ON,
+            ShortcutActions.ACTION_TURN_ON,
             R.string.shortcut_turn_on,
             R.drawable.ic_private_black_24dp
         ),
         ShortcutOption(
-            ShortcutService.ACTION_TURN_OFF,
+            ShortcutActions.ACTION_TURN_OFF,
             R.string.shortcut_turn_off,
             R.drawable.ic_off_black_24dp
         ),
@@ -68,8 +75,20 @@ class ShortcutHandlerActivity : AppCompatActivity() {
             showShortcutPicker()
             return
         }
-        handleShortcut(intent)
-        finish()
+        if (savedInstanceState != null) {
+            // Recreated while the action was running, don't run it twice
+            finish()
+            return
+        }
+        // Done in the activity rather than a background service: Android 13+ only shows toasts
+        // from apps in the foreground unless they may post notifications
+        lifecycleScope.launch {
+            try {
+                handleShortcut(intent)
+            } finally {
+                finish()
+            }
+        }
     }
 
     override fun onDestroy() {
@@ -79,27 +98,49 @@ class ShortcutHandlerActivity : AppCompatActivity() {
     }
 
     /**
-     * Starts [ShortcutService] for the action in the intent data, if the caller is allowed to.
+     * Performs the action in the intent data, if the caller is allowed to.
      */
-    private fun handleShortcut(intent: Intent?) {
-        val data = intent?.data ?: return
-        if (data.toString() !in ShortcutService.ACTIONS) {
-            Log.w(TAG, "handleShortcut: unknown action $data")
+    private suspend fun handleShortcut(intent: Intent?) {
+        val action = intent?.data?.toString() ?: return
+        if (action !in ShortcutActions.ACTIONS) {
+            Log.w(TAG, "handleShortcut: unknown action $action")
             return
         }
         // An alias launch means the intent came from another app, not from our own shortcuts
         val isExternal = componentName.className != ShortcutHandlerActivity::class.java.name
         if (isExternal && !PreferenceHelper.defaultPreference(this).allowExternalControl) {
-            Log.i(TAG, "handleShortcut: external control is disabled, ignoring $data")
+            Log.i(TAG, "handleShortcut: external control is disabled, ignoring $action")
             Toast.makeText(this, R.string.external_control_disabled_toast, Toast.LENGTH_LONG)
                 .show()
             return
         }
-        startService(
-            Intent(this, ShortcutService::class.java)
-                .setData(data)
-                .putExtra(ShortcutService.EXTRA_FROM_OTHER_APP, isExternal)
+        if (!PrivateDNSUtils.checkForPermission(this)) {
+            Toast.makeText(this, R.string.permission_missing, Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val repository = (application as PrivateDNSApp).repository
+        val next = ShortcutActions.nextSetting(
+            action,
+            PreferenceHelper.defaultPreference(this).autoMode,
+            PrivateDNSUtils.getPrivateMode(contentResolver),
+            PrivateDNSUtils.getPrivateProvider(contentResolver),
+            repository
         )
+        if (next == null) {
+            // Private mode is needed, but there is no enabled server to use
+            Toast.makeText(this, R.string.no_servers_added, Toast.LENGTH_SHORT).show()
+            return
+        }
+        try {
+            withContext(Dispatchers.IO) {
+                AutoRevert.applyUserChange(this@ShortcutHandlerActivity, next, fromOtherApp = isExternal)
+            }
+        } catch (e: SecurityException) {
+            // The permission was revoked after the check above
+            Log.w(TAG, "handleShortcut: could not change settings", e)
+            Toast.makeText(this, R.string.permission_missing, Toast.LENGTH_SHORT).show()
+        }
     }
 
     /**

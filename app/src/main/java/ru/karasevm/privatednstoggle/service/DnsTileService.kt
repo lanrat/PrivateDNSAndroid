@@ -23,7 +23,6 @@ import ru.karasevm.privatednstoggle.R
 import ru.karasevm.privatednstoggle.data.DnsServerRepository
 import ru.karasevm.privatednstoggle.ui.MainActivity
 import ru.karasevm.privatednstoggle.util.AutoRevert
-import ru.karasevm.privatednstoggle.util.DnsSetting
 import ru.karasevm.privatednstoggle.util.PreferenceHelper
 import ru.karasevm.privatednstoggle.util.PreferenceHelper.autoMode
 import ru.karasevm.privatednstoggle.util.PreferenceHelper.requireUnlock
@@ -62,14 +61,10 @@ class DnsTileService : TileService() {
      */
     private fun cycleState() {
         scope.launch {
-            val previous = DnsSetting(
-                PrivateDNSUtils.getPrivateMode(contentResolver).orEmpty(),
-                PrivateDNSUtils.getPrivateProvider(contentResolver)
-            )
             val next = PrivateDNSUtils.getNextProvider(
                 sharedPreferences.autoMode,
-                previous.mode,
-                previous.provider,
+                PrivateDNSUtils.getPrivateMode(contentResolver),
+                PrivateDNSUtils.getPrivateProvider(contentResolver),
                 repository
             )
             if (next == null) {
@@ -77,8 +72,7 @@ class DnsTileService : TileService() {
                 withContext(Dispatchers.Main) { openApp() }
                 return@launch
             }
-            PrivateDNSUtils.applyDnsSetting(contentResolver, next)
-            AutoRevert.onDnsChanged(this@DnsTileService, previous, next, mayStart = true)
+            AutoRevert.applyUserChange(this@DnsTileService, next, fromOtherApp = false)
             // The settings observer refreshes too, but only if the value actually changed
             withContext(Dispatchers.Main) { refreshTile() }
         }
@@ -130,7 +124,8 @@ class DnsTileService : TileService() {
         val isPermissionGranted = checkForPermission(this)
         val dnsMode = PrivateDNSUtils.getPrivateMode(contentResolver)
         // While Private DNS is not on, show when it will be switched back on
-        val revertSubtitle = AutoRevert.pendingAt(this)?.let {
+        val pendingAt = withContext(Dispatchers.IO) { AutoRevert.pendingAt(this@DnsTileService) }
+        val revertSubtitle = pendingAt?.let {
             getString(R.string.auto_revert_tile_subtitle, AutoRevert.formatTime(this, it))
         }
         when (dnsMode?.lowercase()) {
@@ -199,8 +194,7 @@ class DnsTileService : TileService() {
         refreshTile()
         // Run a switch-back whose alarm was delayed, then show the result
         scope.launch {
-            if (AutoRevert.pendingAt(this@DnsTileService) != null) {
-                AutoRevert.catchUp(this@DnsTileService)
+            if (AutoRevert.catchUp(this@DnsTileService)) {
                 withContext(Dispatchers.Main) { refreshTile() }
             }
         }

@@ -43,7 +43,7 @@ For the app to work properly you'll need to provide it permissions via ADB:
 6. That's it, you should have the app installed.
 
 ## Switching back automatically
-Turn on **"Turn Private DNS back on automatically"** in the app's Options to have Private DNS switch back on a set number of minutes (5 by default) after you turn it off or to auto, e.g. to briefly get past an ad-blocking DNS. The tile shows when it will switch back. It is started by the tile, the server picker and the app's shortcuts, but not by other apps, so automations that turn Private DNS off are not undone. Turning Private DNS back on cancels it. Android may run it a few minutes late, in which case it happens as soon as you open the quick settings or the app.
+Turn on **"Turn Private DNS back on automatically"** in the app's Options to have Private DNS switch back on a set number of minutes (5 by default) after you turn it off or to auto, e.g. to briefly get past an ad-blocking DNS. The tile shows when it will switch back (Android 10+). It is started by the tile, the server picker and the app's shortcuts, but not by other apps, so automations that turn Private DNS off are not undone. Turning Private DNS back on cancels it. Android may run it a few minutes late, in which case it happens as soon as you open the quick settings or the app.
 
 ## Shortcuts and automation
 Long-press the app icon (or add a shortcut from your launcher's widget/shortcut list) to get these actions:

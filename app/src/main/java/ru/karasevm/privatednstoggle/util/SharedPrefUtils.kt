@@ -12,8 +12,6 @@ object PreferenceHelper {
     const val ALLOW_EXTERNAL_CONTROL = "allow_external_control"
     const val AUTO_REVERT_ENABLED = "auto_revert_enabled"
     const val AUTO_REVERT_MINUTES = "auto_revert_minutes"
-    const val AUTO_REVERT_AT = "auto_revert_at"
-    const val AUTO_REVERT_PROVIDER = "auto_revert_provider"
 
     fun defaultPreference(context: Context): SharedPreferences =
         context.getSharedPreferences("app_prefs", 0)
@@ -86,24 +84,6 @@ object PreferenceHelper {
         set(value) {
             editMe {
                 it.put(AUTO_REVERT_MINUTES to value.coerceIn(AutoRevert.MIN_MINUTES, AutoRevert.MAX_MINUTES))
-            }
-        }
-
-    /** Time of the pending switch-back in milliseconds since the epoch, 0 if none */
-    var SharedPreferences.autoRevertAt
-        get() = getLong(AUTO_REVERT_AT, 0L)
-        set(value) {
-            editMe {
-                it.put(AUTO_REVERT_AT to value)
-            }
-        }
-
-    /** Server to switch back to */
-    var SharedPreferences.autoRevertProvider
-        get() = getString(AUTO_REVERT_PROVIDER, "").orEmpty()
-        set(value) {
-            editMe {
-                it.put(AUTO_REVERT_PROVIDER to value)
             }
         }
 }

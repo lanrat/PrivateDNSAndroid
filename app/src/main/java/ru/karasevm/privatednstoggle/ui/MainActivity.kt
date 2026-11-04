@@ -529,7 +529,13 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
      *  @param id The server id
      */
     override fun onDeleteDialogPositiveClick(id: Int) {
-        dnsServerViewModel.delete(id)
+        lifecycleScope.launch {
+            // Don't switch back to a server that no longer exists
+            dnsServerViewModel.getById(id)?.let {
+                AutoRevert.cancelIfProvider(applicationContext, it.server)
+            }
+            dnsServerViewModel.delete(id)
+        }
     }
 
     /**
@@ -548,7 +554,14 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
             Toast.makeText(this, R.string.server_length_error, Toast.LENGTH_SHORT).show()
             return
         }
-        dnsServerViewModel.update(id, server, label, null, enabled)
+        lifecycleScope.launch {
+            // Don't switch back to a server that was disabled or changed
+            val old = dnsServerViewModel.getById(id)
+            if (old != null && (old.server != server || !enabled)) {
+                AutoRevert.cancelIfProvider(applicationContext, old.server)
+            }
+            dnsServerViewModel.update(id, server, label, null, enabled)
+        }
     }
 
     private fun grantPermission() {

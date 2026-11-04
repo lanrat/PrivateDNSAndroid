@@ -27,11 +27,8 @@ class AutoRevertReceiver : BroadcastReceiver() {
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                if (action == ACTION_REVERT) {
-                    AutoRevert.revertNow(context)
-                } else {
-                    AutoRevert.catchUp(context)
-                }
+                // Checks the deadline, so an outdated alarm just re-arms the current one
+                AutoRevert.catchUp(context)
             } finally {
                 pendingResult.finish()
             }

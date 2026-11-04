@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Backup rules for Android 11 and lower (android:fullBackupContent).
+     A pending automatic switch back to Private DNS only makes sense on this device. -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="auto_revert_state.xml" />
+</full-backup-content>

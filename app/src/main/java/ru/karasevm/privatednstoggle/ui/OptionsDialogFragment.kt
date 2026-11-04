@@ -2,6 +2,7 @@ package ru.karasevm.privatednstoggle.ui
 
 import android.annotation.SuppressLint
 import android.app.Dialog
+import android.content.DialogInterface
 import android.os.Bundle
 import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.DialogFragment
@@ -29,6 +30,8 @@ class OptionsDialogFragment : DialogFragment() {
             val builder = MaterialAlertDialogBuilder(it)
             val inflater = requireActivity().layoutInflater
             _binding = DialogOptionsBinding.inflate(inflater)
+            // Text typed before a configuration change is restored after this
+            setUpMinutesField()
 
             val view = binding.root
             builder.setTitle(R.string.options)
@@ -39,20 +42,21 @@ class OptionsDialogFragment : DialogFragment() {
         } ?: throw IllegalStateException("Activity cannot be null")
     }
 
-    private var isMinutesFieldSetUp = false
+    /** The entered switch-back delay, or null if it is not a valid number of minutes */
+    private fun enteredMinutes(): Int? = binding.autoRevertMinutes.text?.toString()?.toIntOrNull()
+        ?.takeIf { it in AutoRevert.MIN_MINUTES..AutoRevert.MAX_MINUTES }
 
     /**
-     * Fills in the switch-back delay and saves it whenever it is valid
+     * Fills in the switch-back delay and validates it while typing.
+     * It is saved when the dialog closes, see [onDismiss].
      */
     // The number field only takes ASCII digits, which is also what toIntOrNull parses
     @SuppressLint("SetTextI18n")
     private fun setUpMinutesField() {
         binding.autoRevertMinutes.setText(sharedPreferences.autoRevertMinutes.toString())
-        binding.autoRevertMinutes.doAfterTextChanged { text ->
-            val minutes = text?.toString()?.toIntOrNull()
-            if (minutes != null && minutes in AutoRevert.MIN_MINUTES..AutoRevert.MAX_MINUTES) {
+        binding.autoRevertMinutes.doAfterTextChanged {
+            if (enteredMinutes() != null) {
                 binding.autoRevertMinutesLayout.error = null
-                sharedPreferences.autoRevertMinutes = minutes
             } else {
                 binding.autoRevertMinutesLayout.error = getString(
                     R.string.auto_revert_minutes_error,
@@ -95,11 +99,6 @@ class OptionsDialogFragment : DialogFragment() {
             sharedPreferences.allowExternalControl = isChecked
         }
 
-        // onStart can run again (e.g. after returning to the app), only set these up once
-        if (!isMinutesFieldSetUp) {
-            isMinutesFieldSetUp = true
-            setUpMinutesField()
-        }
         binding.autoRevertSwitch.isChecked = sharedPreferences.autoRevertEnabled
         binding.autoRevertMinutesLayout.isEnabled = sharedPreferences.autoRevertEnabled
         binding.autoRevertSwitch.setOnCheckedChangeListener { _, isChecked ->
@@ -107,5 +106,11 @@ class OptionsDialogFragment : DialogFragment() {
             binding.autoRevertMinutesLayout.isEnabled = isChecked
             if (!isChecked) AutoRevert.cancel(requireContext())
         }
+    }
+
+    override fun onDismiss(dialog: DialogInterface) {
+        super.onDismiss(dialog)
+        // Invalid input keeps the previous value
+        _binding?.let { enteredMinutes()?.let { sharedPreferences.autoRevertMinutes = it } }
     }
 }

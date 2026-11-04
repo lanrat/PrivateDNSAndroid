@@ -79,10 +79,6 @@ class DNSServerDialogFragment : DialogFragment() {
             return
         }
         adapter.onItemClick = { id ->
-            val previous = DnsSetting(
-                PrivateDNSUtils.getPrivateMode(contentResolver).orEmpty(),
-                PrivateDNSUtils.getPrivateProvider(contentResolver)
-            )
             val server = servers.find { server -> server.id == id }
             val next = when (id) {
                 OFF_ID -> DnsSetting(PrivateDNSUtils.DNS_MODE_OFF, null)
@@ -90,7 +86,7 @@ class DNSServerDialogFragment : DialogFragment() {
                 else -> server?.let { DnsSetting(PrivateDNSUtils.DNS_MODE_PRIVATE, it.server) }
             }
             if (next != null) {
-                PrivateDNSUtils.applyDnsSetting(contentResolver, next)
+                AutoRevert.applyUserChange(requireContext(), next, fromOtherApp = false)
                 val message = when (id) {
                     OFF_ID -> getString(R.string.set_to_off_toast)
                     AUTO_ID -> getString(R.string.set_to_auto_toast)
@@ -100,7 +96,6 @@ class DNSServerDialogFragment : DialogFragment() {
                     )
                 }
                 Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-                AutoRevert.onDnsChanged(requireContext(), previous, next, mayStart = true)
             }
             // The tile observes the system settings and refreshes itself
             dialog?.dismiss()

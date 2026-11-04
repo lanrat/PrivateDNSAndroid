@@ -18,26 +18,38 @@ class AutoRevertTest {
         for (next in listOf(off, auto)) {
             assertEquals(
                 Decision.Schedule("a.example"),
-                AutoRevert.decide(private, next, enabled = true, mayStart = true)
+                AutoRevert.decide(private, next, enabled = true, fromOtherApp = false)
             )
         }
         // The system reports the mode in lower case, but don't depend on it
         assertEquals(
             Decision.Schedule("a.example"),
-            AutoRevert.decide(DnsSetting("HOSTNAME", "a.example"), off, enabled = true, mayStart = true)
+            AutoRevert.decide(DnsSetting("HOSTNAME", "a.example"), off, enabled = true, fromOtherApp = false)
         )
     }
 
     @Test
-    fun nothingIsScheduledWhenDisabledOrRequestedByAnotherApp() {
-        assertEquals(Decision.Keep, AutoRevert.decide(private, off, enabled = false, mayStart = true))
-        assertEquals(Decision.Keep, AutoRevert.decide(private, off, enabled = true, mayStart = false))
+    fun nothingIsScheduledWhenDisabled() {
+        assertEquals(Decision.Keep, AutoRevert.decide(private, off, enabled = false, fromOtherApp = false))
+    }
+
+    @Test
+    fun changesFromOtherAppsNeverScheduleAndCancelPending() {
+        // An automation that turns Private DNS off must not be undone later
+        for (previous in listOf(private, off, auto)) {
+            for (next in listOf(private, off, auto)) {
+                assertEquals(
+                    Decision.Cancel,
+                    AutoRevert.decide(previous, next, enabled = true, fromOtherApp = true)
+                )
+            }
+        }
     }
 
     @Test
     fun switchingBetweenOffAndAutoKeepsPendingSwitchBack() {
-        assertEquals(Decision.Keep, AutoRevert.decide(off, auto, enabled = true, mayStart = true))
-        assertEquals(Decision.Keep, AutoRevert.decide(auto, off, enabled = true, mayStart = true))
+        assertEquals(Decision.Keep, AutoRevert.decide(off, auto, enabled = true, fromOtherApp = false))
+        assertEquals(Decision.Keep, AutoRevert.decide(auto, off, enabled = true, fromOtherApp = false))
     }
 
     @Test
@@ -45,19 +57,18 @@ class AutoRevertTest {
         for (provider in listOf(null, "")) {
             assertEquals(
                 Decision.Keep,
-                AutoRevert.decide(DnsSetting(DNS_MODE_PRIVATE, provider), off, enabled = true, mayStart = true)
+                AutoRevert.decide(DnsSetting(DNS_MODE_PRIVATE, provider), off, enabled = true, fromOtherApp = false)
             )
         }
     }
 
     @Test
     fun turningPrivateDnsOnCancelsPendingSwitchBack() {
-        // Also when another app or the feature being disabled would not schedule one
         for (previous in listOf(off, auto, private)) {
-            for (mayStart in listOf(true, false)) {
+            for (enabled in listOf(true, false)) {
                 assertEquals(
                     Decision.Cancel,
-                    AutoRevert.decide(previous, DnsSetting(DNS_MODE_PRIVATE, "c.example"), enabled = false, mayStart = mayStart)
+                    AutoRevert.decide(previous, DnsSetting(DNS_MODE_PRIVATE, "c.example"), enabled, fromOtherApp = false)
                 )
             }
         }
