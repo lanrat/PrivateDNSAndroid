@@ -8,6 +8,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import ru.karasevm.privatednstoggle.app
+import ru.karasevm.privatednstoggle.ui.showSwitchedBackToast
 
 /**
  * Carries out the pending switch-back (see [ru.karasevm.privatednstoggle.dns.DnsController.runDueSwitchBack]) when its alarm fires, and restores the
@@ -27,10 +28,8 @@ class AutoRevertReceiver : BroadcastReceiver() {
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                // Checks the deadline, so an outdated alarm just re-arms the current one.
-                // No toast: Android 13+ hides them from the background without the
-                // notification permission. The tile shows the result.
-                context.app.dnsController.runDueSwitchBack()
+                // Checks the deadline, so an outdated alarm just re-arms the current one
+                context.app.dnsController.runDueSwitchBack()?.let { context.showSwitchedBackToast(it) }
             } finally {
                 pendingResult.finish()
             }

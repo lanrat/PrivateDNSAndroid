@@ -19,6 +19,8 @@ import ru.karasevm.privatednstoggle.R
 import ru.karasevm.privatednstoggle.app
 import ru.karasevm.privatednstoggle.dns.DnsChange
 import ru.karasevm.privatednstoggle.ui.MainActivity
+import ru.karasevm.privatednstoggle.ui.showSwitchBackScheduledToast
+import ru.karasevm.privatednstoggle.ui.showSwitchedBackToast
 import ru.karasevm.privatednstoggle.util.AutoRevert
 import ru.karasevm.privatednstoggle.util.PrivateDNSUtils.DNS_MODE_AUTO
 import ru.karasevm.privatednstoggle.util.PrivateDNSUtils.DNS_MODE_OFF
@@ -60,14 +62,17 @@ class DnsTileService : TileService() {
      */
     private fun cycleState() {
         scope.launch {
-            when (controller.cycle()) {
-                DnsChange.NoEnabledServer -> {
-                    Log.i(TAG, "cycleState: no enabled servers, opening the app")
-                    withContext(Dispatchers.Main) { openApp() }
-                }
-                // A revoked permission shows as an unavailable tile after the refresh
-                else -> withContext(Dispatchers.Main) { refreshTile() }
+            val change = controller.cycle()
+            if (change == DnsChange.NoEnabledServer) {
+                Log.i(TAG, "cycleState: no enabled servers, opening the app")
+                withContext(Dispatchers.Main) { openApp() }
+                return@launch
             }
+            if (change is DnsChange.Applied) {
+                change.switchBackAt?.let { showSwitchBackScheduledToast(it) }
+            }
+            // A revoked permission shows as an unavailable tile after the refresh
+            withContext(Dispatchers.Main) { refreshTile() }
         }
     }
 
@@ -105,7 +110,8 @@ class DnsTileService : TileService() {
         refreshTile()
         // Run a switch-back whose alarm was delayed, then show the result
         scope.launch {
-            if (controller.runDueSwitchBack() != null) {
+            controller.runDueSwitchBack()?.let { setting ->
+                showSwitchedBackToast(setting)
                 withContext(Dispatchers.Main) { refreshTile() }
             }
         }

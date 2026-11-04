@@ -3,6 +3,7 @@ package ru.karasevm.privatednstoggle
 import android.app.Application
 import android.content.Context
 import android.os.StrictMode
+import android.util.Log
 import com.google.android.material.color.DynamicColors
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -62,7 +63,10 @@ class PrivateDNSApp : Application() {
         }
 
         appScope.launch {
-            LegacyServerMigration.run(PreferenceHelper.defaultPreference(this@PrivateDNSApp), repository)
+            // Runs on every process start (also the tile's and receivers'), so never crash here
+            runCatching {
+                LegacyServerMigration.run(PreferenceHelper.defaultPreference(this@PrivateDNSApp), repository)
+            }.onFailure { Log.e("PrivateDNSApp", "Migrating the legacy server list failed", it) }
         }
     }
 }

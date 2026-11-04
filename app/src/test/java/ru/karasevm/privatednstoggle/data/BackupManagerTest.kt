@@ -62,6 +62,7 @@ class BackupManagerTest {
         assertFalse(manager.import("""{"something":"else"}"""))
         // servers, but none usable
         assertFalse(manager.import("""{"dns_servers":[{"server":"1.1.1.1"}],"auto_mode":null,"require_unlock":null}"""))
+        assertFalse(manager.import("""{"dns_servers":"1.1.1.1,https://dns.example","auto_mode":null,"require_unlock":null}"""))
         assertEquals(0, dao.rows.size)
     }
 

@@ -163,6 +163,25 @@ class DnsControllerTest {
     }
 
     @Test
+    fun dueSwitchBackWithoutPermissionIsDropped() {
+        settings.setting = DnsSetting(DNS_MODE_OFF, "a.example")
+        settings.permission = false
+        switchBack.stored = PendingSwitchBack(now, "b.example")
+
+        assertNull(controller.runDueSwitchBack())
+
+        assertNull(switchBack.stored)
+        assertEquals(emptyList<DnsSetting>(), settings.writes)
+    }
+
+    @Test
+    fun cancelSwitchBack() {
+        switchBack.stored = PendingSwitchBack(now + minutes, "b.example")
+        controller.cancelSwitchBack()
+        assertNull(controller.pendingSwitchBackAt())
+    }
+
+    @Test
     fun cancelSwitchBackToIgnoresCase() {
         switchBack.stored = PendingSwitchBack(now, "b.example")
         controller.cancelSwitchBackTo("a.example")

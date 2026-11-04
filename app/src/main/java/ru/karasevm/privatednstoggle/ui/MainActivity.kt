@@ -3,6 +3,7 @@ package ru.karasevm.privatednstoggle.ui
 import android.content.ClipData
 import android.content.ClipDescription.MIMETYPE_TEXT_PLAIN
 import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -51,13 +52,20 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
     private lateinit var clipboard: ClipboardManager
     private val dnsServerViewModel: DnsServerViewModel by viewModels { DnsServerViewModelFactory(app) }
 
+    // Like the platform contracts, but only offering files that can be opened as a stream
     private val exportFileLauncher =
-        registerForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
+        registerForActivityResult(object : ActivityResultContracts.CreateDocument("text/plain") {
+            override fun createIntent(context: Context, input: String) =
+                super.createIntent(context, input).addCategory(Intent.CATEGORY_OPENABLE)
+        }) { uri ->
             if (uri != null) exportToFile(uri)
         }
 
     private val importFileLauncher =
-        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        registerForActivityResult(object : ActivityResultContracts.OpenDocument() {
+            override fun createIntent(context: Context, input: Array<String>) =
+                super.createIntent(context, input).addCategory(Intent.CATEGORY_OPENABLE)
+        }) { uri ->
             if (uri != null) importFromFile(uri)
         }
 
@@ -81,12 +89,8 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
         super.onResume()
         // Run a switch-back whose alarm was delayed
         lifecycleScope.launch {
-            val controller = app.dnsController
-            val switchedTo = withContext(Dispatchers.IO) { controller.runDueSwitchBack() }
-            switchedTo?.provider?.let { provider ->
-                val name = controller.displayName(provider)
-                Toast.makeText(this@MainActivity, getString(R.string.set_to_provider_toast, name), Toast.LENGTH_SHORT).show()
-            }
+            withContext(Dispatchers.IO) { app.dnsController.runDueSwitchBack() }
+                ?.let { showSwitchedBackToast(it) }
         }
     }
 

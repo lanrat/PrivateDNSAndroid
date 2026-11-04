@@ -23,7 +23,7 @@ class FakeSystemDnsSettings(
         if (!permission) throw SecurityException("WRITE_SECURE_SETTINGS")
         writes += setting
         // The hostname is only written for private mode, Android keeps it otherwise
-        this.setting = if (setting.mode == PrivateDNSUtils.DNS_MODE_PRIVATE) {
+        this.setting = if (setting.mode.equals(PrivateDNSUtils.DNS_MODE_PRIVATE, ignoreCase = true)) {
             setting
         } else {
             DnsSetting(setting.mode, this.setting.provider)

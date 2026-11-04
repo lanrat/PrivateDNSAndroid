@@ -18,7 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import ru.karasevm.privatednstoggle.dns.DnsChange
-import ru.karasevm.privatednstoggle.util.AutoRevert
+import ru.karasevm.privatednstoggle.ui.showSwitchBackScheduledToast
 import ru.karasevm.privatednstoggle.util.ShortcutActions
 
 /**
@@ -118,7 +118,7 @@ class ShortcutHandlerActivity : AppCompatActivity() {
             // Private mode is needed, but there is no enabled server to use
             DnsChange.NoEnabledServer -> toast(getString(R.string.no_servers_added))
             is DnsChange.Applied -> change.switchBackAt?.let {
-                toast(AutoRevert.scheduledMessage(this, it), Toast.LENGTH_LONG)
+                showSwitchBackScheduledToast(it)
             }
             DnsChange.NothingToSwitchBackTo -> Unit
         }

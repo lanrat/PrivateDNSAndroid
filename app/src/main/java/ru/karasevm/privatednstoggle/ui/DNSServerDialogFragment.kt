@@ -115,19 +115,20 @@ class DNSServerDialogFragment : DialogFragment() {
     private var offForDialog: AlertDialog? = null
 
     /**
-     * Shows a toast for the outcome of a change: [appliedMessage] when it was applied, or when
+     * Shows toasts for the outcome of a change: [appliedMessage] when it was applied, and when
      * Private DNS will be switched back on if the change scheduled that.
      */
     private fun report(change: DnsChange, appliedMessage: () -> String?) {
-        val message = when (change) {
-            is DnsChange.Applied -> change.switchBackAt
-                ?.let { AutoRevert.scheduledMessage(requireContext(), it) }
-                ?: appliedMessage()
+        val context = requireContext()
+        when (change) {
+            is DnsChange.Applied -> {
+                appliedMessage()?.let { context.showToast(it) }
+                change.switchBackAt?.let { context.showSwitchBackScheduledToast(it) }
+            }
 
-            DnsChange.PermissionMissing -> getString(R.string.permission_missing)
-            DnsChange.NoEnabledServer, DnsChange.NothingToSwitchBackTo -> null
+            DnsChange.PermissionMissing -> context.showToast(getString(R.string.permission_missing))
+            DnsChange.NoEnabledServer, DnsChange.NothingToSwitchBackTo -> Unit
         }
-        message?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
     }
 
     /**

@@ -46,7 +46,10 @@ class AlarmSwitchBackScheduler(context: Context) : SwitchBackScheduler {
     override fun pending(): PendingSwitchBack? {
         val at = state.getLong(KEY_AT, 0L)
         val provider = state.getString(KEY_PROVIDER, null)
-        return if (at > 0L && provider != null) PendingSwitchBack(at, provider) else null
+        if (at > 0L && !provider.isNullOrEmpty()) return PendingSwitchBack(at, provider)
+        // Incomplete state can't be carried out, drop it with any alarms
+        if (state.all.isNotEmpty()) cancel()
+        return null
     }
 
     override fun schedule(switchBack: PendingSwitchBack) {
@@ -68,7 +71,7 @@ class AlarmSwitchBackScheduler(context: Context) : SwitchBackScheduler {
     }
 
     override fun cancel() {
-        if (!state.contains(KEY_AT)) return
+        if (state.all.isEmpty()) return
         Log.i(TAG, "cancelled pending switch back")
         state.edit { clear() }
         alarmManager.cancel(alarmIntent(REQUEST_WINDOW_ALARM))
