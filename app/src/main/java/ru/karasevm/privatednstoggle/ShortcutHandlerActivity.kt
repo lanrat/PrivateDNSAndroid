@@ -95,7 +95,11 @@ class ShortcutHandlerActivity : AppCompatActivity() {
                 .show()
             return
         }
-        startService(Intent(this, ShortcutService::class.java).setData(data))
+        startService(
+            Intent(this, ShortcutService::class.java)
+                .setData(data)
+                .putExtra(ShortcutService.EXTRA_FROM_OTHER_APP, isExternal)
+        )
     }
 
     /**

@@ -10,6 +10,10 @@ object PreferenceHelper {
     const val AUTO_MODE = "auto_mode"
     const val REQUIRE_UNLOCK = "require_unlock"
     const val ALLOW_EXTERNAL_CONTROL = "allow_external_control"
+    const val AUTO_REVERT_ENABLED = "auto_revert_enabled"
+    const val AUTO_REVERT_MINUTES = "auto_revert_minutes"
+    const val AUTO_REVERT_AT = "auto_revert_at"
+    const val AUTO_REVERT_PROVIDER = "auto_revert_provider"
 
     fun defaultPreference(context: Context): SharedPreferences =
         context.getSharedPreferences("app_prefs", 0)
@@ -63,6 +67,43 @@ object PreferenceHelper {
         set(value) {
             editMe {
                 it.put(ALLOW_EXTERNAL_CONTROL to value)
+            }
+        }
+
+    /** Whether to switch back to Private DNS after the user turned it off or to auto */
+    var SharedPreferences.autoRevertEnabled
+        get() = getBoolean(AUTO_REVERT_ENABLED, false)
+        set(value) {
+            editMe {
+                it.put(AUTO_REVERT_ENABLED to value)
+            }
+        }
+
+    /** Minutes to wait before switching back */
+    var SharedPreferences.autoRevertMinutes
+        get() = getInt(AUTO_REVERT_MINUTES, AutoRevert.DEFAULT_MINUTES)
+            .coerceIn(AutoRevert.MIN_MINUTES, AutoRevert.MAX_MINUTES)
+        set(value) {
+            editMe {
+                it.put(AUTO_REVERT_MINUTES to value.coerceIn(AutoRevert.MIN_MINUTES, AutoRevert.MAX_MINUTES))
+            }
+        }
+
+    /** Time of the pending switch-back in milliseconds since the epoch, 0 if none */
+    var SharedPreferences.autoRevertAt
+        get() = getLong(AUTO_REVERT_AT, 0L)
+        set(value) {
+            editMe {
+                it.put(AUTO_REVERT_AT to value)
+            }
+        }
+
+    /** Server to switch back to */
+    var SharedPreferences.autoRevertProvider
+        get() = getString(AUTO_REVERT_PROVIDER, "").orEmpty()
+        set(value) {
+            editMe {
+                it.put(AUTO_REVERT_PROVIDER to value)
             }
         }
 }

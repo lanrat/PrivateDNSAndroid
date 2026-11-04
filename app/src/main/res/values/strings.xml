@@ -71,4 +71,9 @@
     <string name="allow_external_control_setting">Allow other apps (e.g. Tasker) to change Private DNS through shortcuts</string>
     <string name="external_control_disabled_toast">Other apps are not allowed to change Private DNS. You can allow it in the app options.</string>
     <string name="shortcut_picker_title">Choose a shortcut</string>
+    <string name="auto_revert_setting">Turn Private DNS back on automatically after turning it off or to auto</string>
+    <string name="auto_revert_minutes_hint">After how many minutes</string>
+    <string name="auto_revert_minutes_error">Enter a number from %1$d to %2$d</string>
+    <string name="auto_revert_scheduled_toast">Private DNS will turn back on at about %1$s</string>
+    <string name="auto_revert_tile_subtitle">Back on at %1$s</string>
 </resources>

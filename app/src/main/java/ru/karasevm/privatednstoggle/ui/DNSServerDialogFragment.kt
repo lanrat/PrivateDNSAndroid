@@ -16,6 +16,7 @@ import ru.karasevm.privatednstoggle.data.DnsServerViewModel
 import ru.karasevm.privatednstoggle.data.DnsServerViewModelFactory
 import ru.karasevm.privatednstoggle.databinding.SheetDnsSelectorBinding
 import ru.karasevm.privatednstoggle.model.DnsServer
+import ru.karasevm.privatednstoggle.util.AutoRevert
 import ru.karasevm.privatednstoggle.util.DnsSetting
 import ru.karasevm.privatednstoggle.util.PrivateDNSUtils
 import ru.karasevm.privatednstoggle.util.PrivateDNSUtils.checkForPermission
@@ -78,40 +79,28 @@ class DNSServerDialogFragment : DialogFragment() {
             return
         }
         adapter.onItemClick = { id ->
-            when (id) {
-                OFF_ID -> {
-                    PrivateDNSUtils.applyDnsSetting(
-                        contentResolver,
-                        DnsSetting(PrivateDNSUtils.DNS_MODE_OFF, null)
+            val previous = DnsSetting(
+                PrivateDNSUtils.getPrivateMode(contentResolver).orEmpty(),
+                PrivateDNSUtils.getPrivateProvider(contentResolver)
+            )
+            val server = servers.find { server -> server.id == id }
+            val next = when (id) {
+                OFF_ID -> DnsSetting(PrivateDNSUtils.DNS_MODE_OFF, null)
+                AUTO_ID -> DnsSetting(PrivateDNSUtils.DNS_MODE_AUTO, null)
+                else -> server?.let { DnsSetting(PrivateDNSUtils.DNS_MODE_PRIVATE, it.server) }
+            }
+            if (next != null) {
+                PrivateDNSUtils.applyDnsSetting(contentResolver, next)
+                val message = when (id) {
+                    OFF_ID -> getString(R.string.set_to_off_toast)
+                    AUTO_ID -> getString(R.string.set_to_auto_toast)
+                    else -> getString(
+                        R.string.set_to_provider_toast,
+                        server?.label?.ifEmpty { null } ?: next.provider
                     )
-                    Toast.makeText(context, R.string.set_to_off_toast, Toast.LENGTH_SHORT).show()
                 }
-
-                AUTO_ID -> {
-                    PrivateDNSUtils.applyDnsSetting(
-                        contentResolver,
-                        DnsSetting(PrivateDNSUtils.DNS_MODE_AUTO, null)
-                    )
-                    Toast.makeText(context, R.string.set_to_auto_toast, Toast.LENGTH_SHORT).show()
-                }
-
-                else -> {
-                    val server = servers.find { server -> server.id == id }
-                    if (server != null) {
-                        PrivateDNSUtils.applyDnsSetting(
-                            contentResolver,
-                            DnsSetting(PrivateDNSUtils.DNS_MODE_PRIVATE, server.server)
-                        )
-                        Toast.makeText(
-                            context,
-                            getString(
-                                R.string.set_to_provider_toast,
-                                server.label.ifEmpty { server.server }
-                            ),
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                }
+                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                AutoRevert.onDnsChanged(requireContext(), previous, next, mayStart = true)
             }
             // The tile observes the system settings and refreshes itself
             dialog?.dismiss()

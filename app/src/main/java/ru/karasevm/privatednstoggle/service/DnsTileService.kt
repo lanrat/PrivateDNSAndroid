@@ -22,6 +22,8 @@ import ru.karasevm.privatednstoggle.PrivateDNSApp
 import ru.karasevm.privatednstoggle.R
 import ru.karasevm.privatednstoggle.data.DnsServerRepository
 import ru.karasevm.privatednstoggle.ui.MainActivity
+import ru.karasevm.privatednstoggle.util.AutoRevert
+import ru.karasevm.privatednstoggle.util.DnsSetting
 import ru.karasevm.privatednstoggle.util.PreferenceHelper
 import ru.karasevm.privatednstoggle.util.PreferenceHelper.autoMode
 import ru.karasevm.privatednstoggle.util.PreferenceHelper.requireUnlock
@@ -60,10 +62,14 @@ class DnsTileService : TileService() {
      */
     private fun cycleState() {
         scope.launch {
+            val previous = DnsSetting(
+                PrivateDNSUtils.getPrivateMode(contentResolver).orEmpty(),
+                PrivateDNSUtils.getPrivateProvider(contentResolver)
+            )
             val next = PrivateDNSUtils.getNextProvider(
                 sharedPreferences.autoMode,
-                PrivateDNSUtils.getPrivateMode(contentResolver),
-                PrivateDNSUtils.getPrivateProvider(contentResolver),
+                previous.mode,
+                previous.provider,
                 repository
             )
             if (next == null) {
@@ -72,6 +78,7 @@ class DnsTileService : TileService() {
                 return@launch
             }
             PrivateDNSUtils.applyDnsSetting(contentResolver, next)
+            AutoRevert.onDnsChanged(this@DnsTileService, previous, next, mayStart = true)
             // The settings observer refreshes too, but only if the value actually changed
             withContext(Dispatchers.Main) { refreshTile() }
         }
@@ -122,12 +129,17 @@ class DnsTileService : TileService() {
     private suspend fun updateTileFromSettings() {
         val isPermissionGranted = checkForPermission(this)
         val dnsMode = PrivateDNSUtils.getPrivateMode(contentResolver)
+        // While Private DNS is not on, show when it will be switched back on
+        val revertSubtitle = AutoRevert.pendingAt(this)?.let {
+            getString(R.string.auto_revert_tile_subtitle, AutoRevert.formatTime(this, it))
+        }
         when (dnsMode?.lowercase()) {
             DNS_MODE_OFF -> {
                 setTile(
                     if (!isPermissionGranted) Tile.STATE_UNAVAILABLE else Tile.STATE_INACTIVE,
                     getString(R.string.dns_off),
-                    R.drawable.ic_off_black_24dp
+                    R.drawable.ic_off_black_24dp,
+                    revertSubtitle
                 )
             }
 
@@ -135,7 +147,8 @@ class DnsTileService : TileService() {
                 setTile(
                     if (!isPermissionGranted) Tile.STATE_UNAVAILABLE else Tile.STATE_INACTIVE,
                     getString(R.string.dns_auto),
-                    R.drawable.ic_auto_black_24dp
+                    R.drawable.ic_auto_black_24dp,
+                    revertSubtitle
                 )
             }
 
@@ -158,7 +171,8 @@ class DnsTileService : TileService() {
                 setTile(
                     if (!isPermissionGranted) Tile.STATE_UNAVAILABLE else Tile.STATE_INACTIVE,
                     getString(R.string.dns_unknown),
-                    R.drawable.ic_unknown_black_24dp
+                    R.drawable.ic_unknown_black_24dp,
+                    revertSubtitle
                 )
             }
         }
@@ -183,6 +197,13 @@ class DnsTileService : TileService() {
             isObserverRegistered = true
         }
         refreshTile()
+        // Run a switch-back whose alarm was delayed, then show the result
+        scope.launch {
+            if (AutoRevert.pendingAt(this@DnsTileService) != null) {
+                AutoRevert.catchUp(this@DnsTileService)
+                withContext(Dispatchers.Main) { refreshTile() }
+            }
+        }
     }
 
     override fun onStopListening() {
@@ -209,12 +230,16 @@ class DnsTileService : TileService() {
      * @param state tile state
      * @param label tile label
      * @param icon tile icon
+     * @param subtitle second line of the tile (Android 10+), null for none
      */
-    private fun setTile(state: Int, label: String?, icon: Int) {
+    private fun setTile(state: Int, label: String?, icon: Int, subtitle: String? = null) {
         val tile = qsTile ?: return
         tile.state = state
         tile.label = label
         tile.icon = Icon.createWithResource(this, icon)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            tile.subtitle = subtitle
+        }
         tile.updateTile()
     }
 

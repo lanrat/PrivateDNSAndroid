@@ -5,6 +5,8 @@
     <uses-permission
         android:name="android.permission.WRITE_SECURE_SETTINGS"
         tools:ignore="ProtectedPermissions" />
+    <!-- Restores a pending automatic switch back to Private DNS after a reboot -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:name=".PrivateDNSApp"
@@ -79,6 +81,17 @@
             android:excludeFromRecents="true"
             android:exported="false">
         </activity>
+
+        <!-- Not exported: the system still delivers its own broadcasts (boot, package update)
+             and the app's alarm to it, other apps can't. -->
+        <receiver
+            android:name=".service.AutoRevertReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <service
             android:name=".service.DnsTileService"

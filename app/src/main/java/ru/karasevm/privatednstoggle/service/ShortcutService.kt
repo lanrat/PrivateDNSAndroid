@@ -14,6 +14,7 @@ import kotlinx.coroutines.withContext
 import ru.karasevm.privatednstoggle.PrivateDNSApp
 import ru.karasevm.privatednstoggle.R
 import ru.karasevm.privatednstoggle.data.DnsServerRepository
+import ru.karasevm.privatednstoggle.util.AutoRevert
 import ru.karasevm.privatednstoggle.util.DnsSetting
 import ru.karasevm.privatednstoggle.util.PreferenceHelper
 import ru.karasevm.privatednstoggle.util.PreferenceHelper.autoMode
@@ -36,15 +37,22 @@ class ShortcutService : Service() {
 
         /** All supported actions */
         val ACTIONS = listOf(ACTION_DO_CYCLE, ACTION_SWITCH_MODE, ACTION_TURN_ON, ACTION_TURN_OFF)
+
+        /**
+         * Boolean extra, true if another app requested the action. Such requests don't start
+         * the automatic switch-back. The service is not exported, so only this app sets it.
+         */
+        const val EXTRA_FROM_OTHER_APP = "from_other_app"
         private const val TAG = "ShortcutService"
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val data = intent?.data?.toString()
-        Log.d(TAG, "onStartCommand: got intent $data")
+        val fromOtherApp = intent?.getBooleanExtra(EXTRA_FROM_OTHER_APP, false) == true
+        Log.d(TAG, "onStartCommand: got intent $data, from other app: $fromOtherApp")
         scope.launch {
             try {
-                handleAction(data)
+                handleAction(data, fromOtherApp)
             } finally {
                 stopSelf(startId)
             }
@@ -56,8 +64,9 @@ class ShortcutService : Service() {
      * Computes and applies the new dns setting for [action].
      *
      * @param action one of the ACTION_* constants
+     * @param fromOtherApp whether another app requested the action
      */
-    private suspend fun handleAction(action: String?) {
+    private suspend fun handleAction(action: String?, fromOtherApp: Boolean) {
         if (!PrivateDNSUtils.checkForPermission(this)) {
             showToast(R.string.permission_missing)
             return
@@ -106,7 +115,14 @@ class ShortcutService : Service() {
             // The permission was revoked after the check above
             Log.w(TAG, "handleAction: could not change settings", e)
             showToast(R.string.permission_missing)
+            return
         }
+        AutoRevert.onDnsChanged(
+            this,
+            DnsSetting(currentMode.orEmpty(), currentProvider),
+            next,
+            mayStart = !fromOtherApp
+        )
     }
 
     private suspend fun showToast(@StringRes message: Int) = withContext(Dispatchers.Main) {
