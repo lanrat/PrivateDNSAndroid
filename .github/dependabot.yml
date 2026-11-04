@@ -1,15 +1,27 @@
 version: 2
 updates:
+  # Libraries and Gradle plugins from gradle/libs.versions.toml, grouped into a few PRs a week.
   - package-ecosystem: gradle
     directory: /
     schedule:
       interval: weekly
+    commit-message:
+      prefix: "deps"
+    ignore:
+      # Must match the androidx.sqlite version that Room uses (see libs.versions.toml);
+      # update it together with Room by hand.
+      - dependency-name: "androidx.sqlite:sqlite-bundled-jvm"
     groups:
       # Kotlin, its compiler plugins and KSP have to move together.
       kotlin:
         patterns:
           - "org.jetbrains.kotlin*"
           - "com.google.devtools.ksp*"
+      # The Android Gradle Plugin.
+      build-tools:
+        patterns:
+          - "com.android.application"
+          - "com.android.tools.build*"
       androidx:
         patterns:
           - "androidx.*"
@@ -20,10 +32,19 @@ updates:
         exclude-patterns:
           - "org.jetbrains.kotlin*"
           - "com.google.devtools.ksp*"
+          - "com.android.application"
+          - "com.android.tools.build*"
           - "androidx.*"
           - "com.google.android.material*"
 
+  # Actions used by the workflows, all in one PR per month.
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
+    commit-message:
+      prefix: "ci"
+    groups:
+      actions:
+        patterns:
+          - "*"
