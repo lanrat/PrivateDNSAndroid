@@ -36,6 +36,7 @@ class DnsServerRepository(private val dnsServerDao: DnsServerDao) {
         dnsServerDao.insertAllIfAbsent(dnsServers)
     }
 
+    /** @return the number of updated rows, 0 if the server is gone or the address is taken */
     @WorkerThread
     suspend fun update(
         id: Int,
@@ -43,9 +44,7 @@ class DnsServerRepository(private val dnsServerDao: DnsServerDao) {
         label: String?,
         sortOrder: Int?,
         enabled: Boolean?
-    ) {
-        dnsServerDao.update(id, server, label, sortOrder, enabled)
-    }
+    ): Int = dnsServerDao.update(id, server, label, sortOrder, enabled)
 
     @WorkerThread
     suspend fun move(sortOrder: Int, newSortOrder: Int, id: Int) {

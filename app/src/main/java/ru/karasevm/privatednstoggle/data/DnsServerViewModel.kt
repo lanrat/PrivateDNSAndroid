@@ -63,8 +63,11 @@ class DnsServerViewModel(private val dnsServerRepository: DnsServerRepository) :
             return@launch
         }
         val old = dnsServerRepository.getById(id)
-        dnsServerRepository.update(id, server, label, null, enabled)
-        onUpdated(old)
+        when (dnsServerRepository.update(id, server, label, null, enabled)) {
+            1 -> onUpdated(old)
+            // Ignored by the unique index: another server took the address in the meantime
+            else -> if (old != null) onDuplicate()
+        }
     }
 
     fun update(

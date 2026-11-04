@@ -64,7 +64,7 @@ interface DnsServerDao {
             "    sortOrder = COALESCE(:sortOrder, sortOrder), " +
             "    enabled = COALESCE(:enabled, enabled) " +
             "WHERE id = :id")
-    suspend fun update(id: Int, server: String?, label: String?, sortOrder: Int?, enabled: Boolean?)
+    suspend fun update(id: Int, server: String?, label: String?, sortOrder: Int?, enabled: Boolean?): Int
 
     @Transaction
     suspend fun moveUp(sortOrder: Int, newSortOrder: Int, id: Int){

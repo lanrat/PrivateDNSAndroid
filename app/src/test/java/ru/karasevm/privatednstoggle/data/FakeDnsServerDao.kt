@@ -54,13 +54,18 @@ class FakeDnsServerDao(initial: List<DnsServer> = emptyList()) : DnsServerDao {
         mutate { list -> list.map { if (it.sortOrder!! > order) it.copy(sortOrder = it.sortOrder - 1) else it } }
     }
 
-    override suspend fun updateLabel(id: Int, label: String) =
+    override suspend fun updateLabel(id: Int, label: String) {
         update(id, null, label, null, null)
+    }
 
-    override suspend fun updateServer(id: Int, server: String) =
+    override suspend fun updateServer(id: Int, server: String) {
         update(id, server, null, null, null)
+    }
 
-    override suspend fun update(id: Int, server: String?, label: String?, sortOrder: Int?, enabled: Boolean?) =
+    override suspend fun update(id: Int, server: String?, label: String?, sortOrder: Int?, enabled: Boolean?): Int {
+        if (getById(id) == null) return 0
+        // Like UPDATE OR IGNORE with the unique index
+        if (server != null && servers.value.any { it.server == server && it.id != id }) return 0
         mutate { list ->
             list.map {
                 if (it.id != id) it else it.copy(
@@ -71,6 +76,8 @@ class FakeDnsServerDao(initial: List<DnsServer> = emptyList()) : DnsServerDao {
                 )
             }
         }
+        return 1
+    }
 
     override suspend fun insert(server: String, label: String, enabled: Boolean) =
         insertBlocking(server, label, enabled)

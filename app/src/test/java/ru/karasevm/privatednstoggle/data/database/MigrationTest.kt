@@ -56,7 +56,7 @@ class MigrationTest {
     fun tearDown() = connection.close()
 
     @Test
-    fun migrate1To2_keepsFirstOfEachDuplicateAndRenumbers() {
+    fun migrate1To2_keepsOneOfEachDuplicateAndRenumbers() {
         connection.execSQL(
             """
             INSERT INTO dns_servers (id, server, label, enabled, sortOrder) VALUES
@@ -75,13 +75,41 @@ class MigrationTest {
 
         assertEquals(
             listOf(
-                "1 a.example 'A' 1 0",
-                "2 b.example '' 1 1",
-                "4 c.example '' 0 2",
-                // the copy that came first in the list wins, not the lower id
-                "8 e.example '' 1 3",
-                // rows without a sortOrder go last
-                "6 d.example '' 1 4",
+                // v1 listed rows without a sortOrder first (SQLite sorts NULL first)
+                "6 d.example '' 1 0",
+                // the enabled copy wins over the disabled one
+                "1 a.example 'A' 1 1",
+                "2 b.example '' 1 2",
+                "4 c.example '' 0 3",
+                // between equal copies, the one earlier in the list wins, not the lower id
+                "8 e.example '' 1 4",
+            ),
+            rows()
+        )
+    }
+
+    @Test
+    fun migrate1To2_keepsTheMostUsefulCopyWhereItIs() {
+        connection.execSQL(
+            """
+            INSERT INTO dns_servers (id, server, label, enabled, sortOrder) VALUES
+                (1, 'a.example', '', 0, 0),
+                (2, 'b.example', '', 1, 1),
+                (3, 'a.example', 'Work', 1, 2),
+                (4, 'c.example', '', 1, 3),
+                (5, 'c.example', 'Home', 1, 4)
+            """.trimIndent()
+        )
+
+        MIGRATION_1_2.migrate(connection)
+
+        assertEquals(
+            listOf(
+                "2 b.example '' 1 0",
+                // enabled and labelled beats disabled, and keeps its own position
+                "3 a.example 'Work' 1 1",
+                // labelled beats unlabelled
+                "5 c.example 'Home' 1 2",
             ),
             rows()
         )

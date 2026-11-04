@@ -39,6 +39,25 @@ class ServerListRecyclerAdapter(private val showDragHandle: Boolean) :
     var onMove: ((fromPosition: Int, toPosition: Int, id: Int) -> Unit)? = null
     private var items: MutableList<DnsServer> = mutableListOf()
 
+    override fun onBindViewHolder(holder: DnsServerViewHolder, position: Int, payloads: List<Any>) {
+        if (payloads.isNotEmpty() && payloads.all { it == PAYLOAD_MOVE_ACTIONS }) {
+            // Only the position changed, see refreshMoveActions
+            if (showDragHandle) updateMoveActions(holder, position)
+        } else {
+            onBindViewHolder(holder, position)
+        }
+    }
+
+    /**
+     * Updates the rows' "move up" / "move down" accessibility actions, which depend on their
+     * positions, after rows were moved, added or removed. Rows are not rebound otherwise.
+     */
+    fun refreshMoveActions() {
+        if (showDragHandle && items.isNotEmpty()) {
+            notifyItemRangeChanged(0, items.size, PAYLOAD_MOVE_ACTIONS)
+        }
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     override fun onBindViewHolder(holder: DnsServerViewHolder, position: Int) {
         val item = items[position]
@@ -145,6 +164,7 @@ class ServerListRecyclerAdapter(private val showDragHandle: Boolean) :
         items.clear()
         items.addAll(list)
         diffResult.dispatchUpdatesTo(this)
+        refreshMoveActions()
     }
 
     inner class DnsServerViewHolder(view: View) : RecyclerView.ViewHolder(view) {
@@ -161,4 +181,7 @@ class ServerListRecyclerAdapter(private val showDragHandle: Boolean) :
         }
     }
 
+    private companion object {
+        const val PAYLOAD_MOVE_ACTIONS = "move_actions"
+    }
 }

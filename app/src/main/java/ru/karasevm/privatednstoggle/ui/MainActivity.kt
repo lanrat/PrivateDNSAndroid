@@ -128,6 +128,8 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
                     )
                     dragTo = -1
                     dragFrom = -1
+                    // Positions changed without a rebind
+                    adapter.refreshMoveActions()
                 }
             }
         ItemTouchHelper(simpleItemTouchCallback)
@@ -176,7 +178,7 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
                     DnsServer(0, parts[1], parts[0])
                 }
                 // A single transaction keeps the original order
-                dnsServerViewModel.insertAllIfAbsent(servers)
+                dnsServerViewModel.insertAllIfAbsent(BackupUtils.validServers(servers))
                 sharedPrefs.dns_servers = emptyList<String>().toMutableList()
             }
         }
@@ -228,9 +230,7 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
         }
         adapter.onMove = { from, to, id ->
             adapter.onItemMove(from, to)
-            // Rebind both rows so their move actions match their new positions
-            adapter.notifyItemChanged(from)
-            adapter.notifyItemChanged(to)
+            adapter.refreshMoveActions()
             // Positions match sortOrder, as for drag and drop
             dnsServerViewModel.move(from, to, id)
         }

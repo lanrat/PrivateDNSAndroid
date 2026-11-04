@@ -49,7 +49,9 @@ object BackupUtils {
         sharedPreferences: SharedPreferences
     ) {
         // Servers that are already saved are skipped, so importing twice doesn't duplicate them
-        viewModel.insertAllIfAbsent(validServers(backup.dnsServers))
+        val servers = validServers(backup.dnsServers)
+        require(servers.isNotEmpty() || backup.dnsServers.isEmpty()) { "No valid servers in the backup" }
+        viewModel.insertAllIfAbsent(servers)
         sharedPreferences.autoMode = backup.autoMode ?: sharedPreferences.autoMode
         sharedPreferences.requireUnlock = backup.requireUnlock ?: sharedPreferences.requireUnlock
     }
@@ -73,7 +75,9 @@ object BackupUtils {
                 DnsServer(0, server, "")
             }
         }
-        viewModel.insertAllIfAbsent(validServers(servers))
+        val valid = validServers(servers)
+        require(valid.isNotEmpty()) { "No valid servers in the backup" }
+        viewModel.insertAllIfAbsent(valid)
         sharedPreferences.autoMode = legacyBackup.autoMode?: 0
         sharedPreferences.requireUnlock = legacyBackup.requireUnlock == true
     }
