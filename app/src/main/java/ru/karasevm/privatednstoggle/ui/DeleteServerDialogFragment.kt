@@ -8,7 +8,10 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import ru.karasevm.privatednstoggle.R
 
 
-class DeleteServerDialogFragment(private val id: Int) : DialogFragment() {
+class DeleteServerDialogFragment : DialogFragment() {
+    // Stored in the arguments so the fragment survives recreation (rotation, process death)
+    private val serverId: Int by lazy { requireArguments().getInt(ARG_ID) }
+
     // Use this instance of the interface to deliver action events
     private lateinit var listener: NoticeDialogListener
 
@@ -44,7 +47,7 @@ class DeleteServerDialogFragment(private val id: Int) : DialogFragment() {
                 .setPositiveButton(
                     R.string.delete
                 ) { _, _ ->
-                    listener.onDeleteDialogPositiveClick(id)
+                    listener.onDeleteDialogPositiveClick(serverId)
                 }
                 .setNegativeButton(
                     R.string.cancel
@@ -56,5 +59,15 @@ class DeleteServerDialogFragment(private val id: Int) : DialogFragment() {
         } ?: throw IllegalStateException("Activity cannot be null")
     }
 
+    companion object {
+        private const val ARG_ID = "id"
 
+        /**
+         * Creates the dialog for deleting a server
+         * @param id The server id
+         */
+        fun newInstance(id: Int) = DeleteServerDialogFragment().apply {
+            arguments = Bundle().apply { putInt(ARG_ID, id) }
+        }
+    }
 }

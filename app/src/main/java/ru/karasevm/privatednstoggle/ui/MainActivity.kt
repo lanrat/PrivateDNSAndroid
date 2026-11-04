@@ -164,12 +164,14 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
                     "migrate",
                     "existing sharedPrefs list: ${sharedPrefs.dns_servers} ${sharedPrefs.dns_servers.size}"
                 )
-                sharedPrefs.dns_servers.forEach { server ->
+                val servers = sharedPrefs.dns_servers.map { server ->
                     val parts = server.split(" : ").toMutableList()
                     if (parts.size != 2) parts.add(0, "")
                     Log.i("migrate", "migrating: $server -> $parts")
-                    dnsServerViewModel.insert(DnsServer(0, parts[1], parts[0]))
+                    DnsServer(0, parts[1], parts[0])
                 }
+                // A single transaction keeps the original order
+                dnsServerViewModel.insertAllIfAbsent(servers)
                 sharedPrefs.dns_servers = emptyList<String>().toMutableList()
             }
         }
@@ -178,7 +180,7 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        Shizuku.addRequestPermissionResultListener(this::onRequestPermissionResult)
+        Shizuku.addRequestPermissionResultListener(this)
 
         binding = ActivityMainBinding.inflate(layoutInflater)
         val view = binding.root
@@ -210,7 +212,7 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
                 val server = dnsServerViewModel.getById(id)
                 if (server != null) {
                     val newFragment =
-                        AddServerDialogFragment(server)
+                        AddServerDialogFragment.newInstance(server)
                     newFragment.show(supportFragmentManager, "edit_server")
                 }
             }
@@ -219,7 +221,7 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
             itemTouchHelper.startDrag(viewHolder)
         }
         binding.floatingActionButton.setOnClickListener {
-            val newFragment = AddServerDialogFragment(null)
+            val newFragment = AddServerDialogFragment.newInstance(null)
             newFragment.show(supportFragmentManager, "add_server")
         }
         binding.recyclerView.adapter = adapter
@@ -368,9 +370,17 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
             }
         }
 
-    private fun showPermissionDialog() {
+    private var permissionDialog: AlertDialog? = null
 
-        var permissionDialog: AlertDialog? = null
+    // Whether Shizuku was asked for access / used to grant the permission since this
+    // activity was created
+    private var shizukuRequested = false
+    private var shizukuGrantAttempted = false
+
+    private fun showPermissionDialog() {
+        // onResume runs again after returning from the browser, don't stack dialogs
+        if (permissionDialog?.isShowing == true) return
+
         val dialogView = ComposeView(this).apply {
             setContent {
                 val colorScheme = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -416,7 +426,10 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
     override fun onResume() {
         super.onResume()
         // Check if WRITE_SECURE_SETTINGS is granted
-        if (checkSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS) != PackageManager.PERMISSION_GRANTED) {
+        if (checkSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS) == PackageManager.PERMISSION_GRANTED) {
+            // e.g. granted with adb while the app was in the background
+            permissionDialog?.dismiss()
+        } else {
             // Check if Shizuku is available
             if (Shizuku.pingBinder()) {
                 // check if permission is granted already
@@ -425,20 +438,23 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
                 } else {
                     Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
                 }
-                // request permission if not granted
-                if (!isGranted && !Shizuku.shouldShowRequestPermissionRationale()) {
+                if (isGranted) {
+                    // Only try once per activity, a failure shows the dialog instead
+                    if (!shizukuGrantAttempted) grantPermission() else showPermissionDialog()
+                } else if (!shizukuRequested && !Shizuku.shouldShowRequestPermissionRationale()) {
+                    // Ask once per activity, otherwise every resume would show the prompt again
+                    shizukuRequested = true
                     if (Shizuku.isPreV11() || Shizuku.getVersion() < 11) {
                         requestPermissions(arrayOf(ShizukuProvider.PERMISSION), 1)
                     } else {
                         Shizuku.requestPermission(1)
                     }
                 } else {
-                    grantPermission()
-                }
-            } else {
-                if (checkSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS) != PackageManager.PERMISSION_GRANTED) {
+                    // The user denied Shizuku access permanently, explain the other options
                     showPermissionDialog()
                 }
+            } else {
+                showPermissionDialog()
             }
         }
     }
@@ -462,7 +478,7 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
 
     override fun onDestroy() {
         super.onDestroy()
-        Shizuku.removeRequestPermissionResultListener(this::onRequestPermissionResult)
+        Shizuku.removeRequestPermissionResultListener(this)
     }
 
     /**
@@ -470,7 +486,7 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
      *  @param id The server id
      */
     override fun onDeleteItemClicked(id: Int) {
-        val newFragment = DeleteServerDialogFragment(id)
+        val newFragment = DeleteServerDialogFragment.newInstance(id)
         newFragment.show(supportFragmentManager, "delete_server")
     }
 
@@ -520,7 +536,9 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
     }
 
     private fun grantPermission() {
+        shizukuGrantAttempted = true
         if (grantPermissionWithShizuku(this)) {
+            permissionDialog?.dismiss()
             Toast.makeText(
                 this, R.string.shizuku_success_toast, Toast.LENGTH_SHORT
             ).show()
@@ -528,23 +546,19 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
             Toast.makeText(
                 this, R.string.shizuku_failure_toast, Toast.LENGTH_SHORT
             ).show()
-            val browserIntent = Intent(
-                Intent.ACTION_VIEW, "https://karasevm.github.io/PrivateDNSAndroid/".toUri()
-            )
-            startActivity(browserIntent)
-            finish()
+            showPermissionDialog()
         }
     }
 
     override fun onRequestPermissionResult(requestCode: Int, grantResult: Int) {
-        val isGranted = grantResult == PackageManager.PERMISSION_GRANTED
-
-        if (!isGranted && checkSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS) != PackageManager.PERMISSION_GRANTED) {
-            val browserIntent = Intent(
-                Intent.ACTION_VIEW, "https://karasevm.github.io/PrivateDNSAndroid/".toUri()
-            )
-            startActivity(browserIntent)
-            finish()
+        // Already handled, e.g. by onResume after the Shizuku dialog closed
+        if (checkSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS) == PackageManager.PERMISSION_GRANTED) {
+            return
+        }
+        if (grantResult == PackageManager.PERMISSION_GRANTED) {
+            if (!shizukuGrantAttempted) grantPermission()
+        } else {
+            showPermissionDialog()
         }
     }
 }

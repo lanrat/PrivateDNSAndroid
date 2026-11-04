@@ -18,8 +18,8 @@ body:
   - type: input
     id: android_version
     attributes:
-      label: Application Version
-      description: What version of Android you running?
+      label: Android Version
+      description: What version of Android are you running?
       placeholder: ex. 13
     validations:
       required: true

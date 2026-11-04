@@ -19,6 +19,7 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import com.mikepenz.aboutlibraries.ui.compose.android.produceLibraries
 import com.mikepenz.aboutlibraries.ui.compose.m3.LibrariesContainer
 import ru.karasevm.privatednstoggle.R
@@ -47,15 +48,13 @@ class AboutLibsActivity : AppCompatActivity() {
                 Scaffold(
                     topBar = {
                         TopAppBar(
-                            title = { Text("Libraries") },
+                            title = { Text(stringResource(R.string.open_source_licenses)) },
                             navigationIcon = {
                                 IconButton(onClick = { finish() }) {
-                                    IconButton(onClick = { finish() }) {
-                                        Icon(
-                                            painter = painterResource(id = R.drawable.arrow_back_24px),
-                                            contentDescription = "back"
-                                        )
-                                    }
+                                    Icon(
+                                        painter = painterResource(id = R.drawable.arrow_back_24px),
+                                        contentDescription = "back"
+                                    )
                                 }
                             }
                         )

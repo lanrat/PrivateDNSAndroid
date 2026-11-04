@@ -21,6 +21,12 @@ class DnsServerViewModel(private val dnsServerRepository: DnsServerRepository) :
             dnsServerRepository.insert(dnsServer)
         }
 
+    /** Adds the servers that are not saved yet, skipping duplicates */
+    fun insertAllIfAbsent(dnsServers: List<DnsServer>) =
+        viewModelScope.launch {
+            dnsServerRepository.insertAllIfAbsent(dnsServers)
+        }
+
     fun update(
         id: Int,
         server: String? = null,

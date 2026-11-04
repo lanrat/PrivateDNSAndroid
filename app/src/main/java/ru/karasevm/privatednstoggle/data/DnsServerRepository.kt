@@ -28,6 +28,14 @@ class DnsServerRepository(private val dnsServerDao: DnsServerDao) {
         dnsServerDao.insert(dnsServer.server, dnsServer.label, dnsServer.enabled)
     }
 
+    /**
+     * Inserts the servers that are not in the database yet, e.g. when importing a backup
+     */
+    @WorkerThread
+    suspend fun insertAllIfAbsent(dnsServers: List<DnsServer>) {
+        dnsServerDao.insertAllIfAbsent(dnsServers)
+    }
+
     @WorkerThread
     suspend fun update(
         id: Int,

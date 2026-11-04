@@ -13,7 +13,7 @@ interface DnsServerDao {
     fun getAll(): Flow<List<DnsServer>>
 
     @Query("SELECT * FROM dns_servers WHERE enabled = 1 ORDER BY sortOrder ASC LIMIT 1")
-        suspend fun getFirstEnabled(): DnsServer?
+    suspend fun getFirstEnabled(): DnsServer?
 
     @Query("SELECT * FROM dns_servers WHERE server = :server LIMIT 1")
     suspend fun getFirstByServer(server: String): DnsServer?
@@ -80,5 +80,18 @@ interface DnsServerDao {
     @Query("INSERT INTO dns_servers(server, label, sortOrder, enabled) " +
             "VALUES(:server, :label, COALESCE((SELECT MAX(sortOrder) + 1 FROM dns_servers), 0), :enabled)")
     suspend fun insert(server: String, label: String, enabled: Boolean)
+
+    /**
+     * Inserts the servers that are not in the database yet, keeping their order.
+     * Servers with a blank address are skipped.
+     */
+    @Transaction
+    suspend fun insertAllIfAbsent(servers: List<DnsServer>) {
+        servers.forEach { dnsServer ->
+            if (dnsServer.server.isNotBlank() && getFirstByServer(dnsServer.server) == null) {
+                insert(dnsServer.server, dnsServer.label, dnsServer.enabled)
+            }
+        }
+    }
 
 }

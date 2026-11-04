@@ -46,7 +46,8 @@ object BackupUtils {
         viewModel: DnsServerViewModel,
         sharedPreferences: SharedPreferences
     ) {
-        backup.dnsServers.forEach { viewModel.insert(it) }
+        // Servers that are already saved are skipped, so importing twice doesn't duplicate them
+        viewModel.insertAllIfAbsent(backup.dnsServers)
         sharedPreferences.autoMode = backup.autoMode ?: sharedPreferences.autoMode
         sharedPreferences.requireUnlock = backup.requireUnlock ?: sharedPreferences.requireUnlock
     }
@@ -62,17 +63,15 @@ object BackupUtils {
         viewModel: DnsServerViewModel,
         sharedPreferences: SharedPreferences
     ) {
-        legacyBackup.dnsServers.let { servers ->
-                val serverList = servers.split(",")
-                serverList.forEach { server ->
-                    val parts = server.split(" : ")
-                    if (parts.size == 2) {
-                        viewModel.insert(DnsServer(0, parts[1], parts[0]))
-                    } else {
-                        viewModel.insert(DnsServer(0, server, ""))
-                    }
-                }
+        val servers = legacyBackup.dnsServers.split(",").map { server ->
+            val parts = server.split(" : ")
+            if (parts.size == 2) {
+                DnsServer(0, parts[1], parts[0])
+            } else {
+                DnsServer(0, server, "")
+            }
         }
+        viewModel.insertAllIfAbsent(servers)
         sharedPreferences.autoMode = legacyBackup.autoMode?: 0
         sharedPreferences.requireUnlock = legacyBackup.requireUnlock == true
     }

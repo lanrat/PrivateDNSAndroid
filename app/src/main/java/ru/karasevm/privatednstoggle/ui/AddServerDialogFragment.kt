@@ -16,9 +16,22 @@ import ru.karasevm.privatednstoggle.databinding.DialogAddBinding
 import ru.karasevm.privatednstoggle.model.DnsServer
 
 
-class AddServerDialogFragment(
-    private val dnsServer: DnsServer?
-) : DialogFragment() {
+class AddServerDialogFragment : DialogFragment() {
+    // The server being edited, or null when adding a new one. Stored in the arguments so the
+    // fragment survives recreation (rotation, process death).
+    private val dnsServer: DnsServer? by lazy {
+        val args = requireArguments()
+        if (!args.containsKey(ARG_ID)) {
+            null
+        } else {
+            DnsServer(
+                id = args.getInt(ARG_ID),
+                server = args.getString(ARG_SERVER).orEmpty(),
+                label = args.getString(ARG_LABEL).orEmpty(),
+                enabled = args.getBoolean(ARG_ENABLED, true)
+            )
+        }
+    }
     // Use this instance of the interface to deliver action events
     private lateinit var listener: NoticeDialogListener
 
@@ -63,6 +76,7 @@ class AddServerDialogFragment(
             _binding = DialogAddBinding.inflate(inflater)
 
             val view = binding.root
+            val dnsServer = dnsServer
             // Inflate and set the layout for the dialog
             // Pass null as the parent view because its going in the dialog layout
             if (dnsServer != null) {
@@ -116,6 +130,7 @@ class AddServerDialogFragment(
     override fun onStart() {
         super.onStart()
         val button = ((dialog) as AlertDialog).getButton(DialogInterface.BUTTON_POSITIVE)
+        button.isEnabled = isValidServer(binding.editTextServerAddr.text.toString().trim())
         binding.editTextServerAddr.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
 
@@ -137,4 +152,25 @@ class AddServerDialogFragment(
         return InternetDomainName.isValid(str)
     }
 
+    companion object {
+        private const val ARG_ID = "id"
+        private const val ARG_SERVER = "server"
+        private const val ARG_LABEL = "label"
+        private const val ARG_ENABLED = "enabled"
+
+        /**
+         * Creates the dialog for adding a server, or editing [dnsServer] if it is not null
+         * @param dnsServer The server to edit
+         */
+        fun newInstance(dnsServer: DnsServer?) = AddServerDialogFragment().apply {
+            arguments = Bundle().apply {
+                if (dnsServer != null) {
+                    putInt(ARG_ID, dnsServer.id)
+                    putString(ARG_SERVER, dnsServer.server)
+                    putString(ARG_LABEL, dnsServer.label)
+                    putBoolean(ARG_ENABLED, dnsServer.enabled)
+                }
+            }
+        }
+    }
 }
