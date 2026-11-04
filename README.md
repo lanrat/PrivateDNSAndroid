@@ -42,6 +42,28 @@ For the app to work properly you'll need to provide it permissions via ADB:
 
 6. That's it, you should have the app installed.
 
+## Shortcuts and automation
+Long-press the app icon (or add a shortcut from your launcher's widget/shortcut list) to get these actions:
+
+| Shortcut | Effect |
+|---|---|
+| Next server/mode | Same as tapping the tile |
+| Switch mode | Switches between Private DNS and off/auto, keeping the current server |
+| Turn on | Turns Private DNS on, with the current server if it is saved and enabled, otherwise the first enabled server |
+| Turn off | Turns Private DNS off |
+
+Other apps, such as Tasker or MacroDroid, can trigger the same actions **only after you enable "Allow other apps to change Private DNS" in the app's Options**. This is off by default so that no other installed app can silently turn off your Private DNS. Once enabled, start this activity:
+
+- Package: `ru.karasevm.privatednstoggle`
+- Class: `ru.karasevm.privatednstoggle.ExternalShortcutHandlerActivity`
+- Action: `ru.karasevm.privatednstoggle.action.SHORTCUT`
+- Data: `privatednstoggle://do_cycle`, `privatednstoggle://switch_mode`, `privatednstoggle://turn_on` or `privatednstoggle://turn_off`
+
+For example, with adb:
+```
+./adb shell am start -n ru.karasevm.privatednstoggle/.ExternalShortcutHandlerActivity -a ru.karasevm.privatednstoggle.action.SHORTCUT -d privatednstoggle://turn_off
+```
+
 ## Contributing
 
 ### Translation
@@ -56,4 +78,5 @@ If you want to contribute code please try to adhere to the following guidelines:
 - Include javadoc comments for all the public methods you add
 - Keep the code neatly formatted, you can you the built-in Android Studio formatter
 - Please describe what your code does and how does it do that when sending a PR
-- Before sending a PR please test your change on the oldest and latest supported Android versions (9 and 14 at the time of writing)
+- Before sending a PR please test your change on the oldest and latest supported Android versions (9 and 17 at the time of writing)
+- Run `./gradlew assembleDebug testDebugUnitTest lintDebug` before sending a PR, CI runs the same checks

@@ -62,4 +62,14 @@
         android:text="@string/require_unlock_setting"
         android:textSize="16sp" />
 
+    <com.google.android.material.materialswitch.MaterialSwitch
+        android:id="@+id/allowExternalControlSwitch"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="24dp"
+        android:layout_marginEnd="24dp"
+        android:maxWidth="320dp"
+        android:text="@string/allow_external_control_setting"
+        android:textSize="16sp" />
+
 </LinearLayout>

@@ -9,6 +9,7 @@ object PreferenceHelper {
     const val DNS_SERVERS = "dns_servers"
     const val AUTO_MODE = "auto_mode"
     const val REQUIRE_UNLOCK = "require_unlock"
+    const val ALLOW_EXTERNAL_CONTROL = "allow_external_control"
 
     fun defaultPreference(context: Context): SharedPreferences =
         context.getSharedPreferences("app_prefs", 0)
@@ -53,6 +54,15 @@ object PreferenceHelper {
         set(value) {
             editMe {
                 it.put(REQUIRE_UNLOCK to value)
+            }
+        }
+
+    /** Whether other apps (e.g. automation apps) may change Private DNS via shortcut intents */
+    var SharedPreferences.allowExternalControl
+        get() = getBoolean(ALLOW_EXTERNAL_CONTROL, false)
+        set(value) {
+            editMe {
+                it.put(ALLOW_EXTERNAL_CONTROL to value)
             }
         }
 }

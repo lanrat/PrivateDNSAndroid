@@ -7,6 +7,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import ru.karasevm.privatednstoggle.R
 import ru.karasevm.privatednstoggle.databinding.DialogOptionsBinding
 import ru.karasevm.privatednstoggle.util.PreferenceHelper
+import ru.karasevm.privatednstoggle.util.PreferenceHelper.allowExternalControl
 import ru.karasevm.privatednstoggle.util.PreferenceHelper.autoMode
 import ru.karasevm.privatednstoggle.util.PreferenceHelper.requireUnlock
 import ru.karasevm.privatednstoggle.util.PrivateDNSUtils
@@ -58,6 +59,11 @@ class OptionsDialogFragment : DialogFragment() {
         binding.requireUnlockSwitch.isChecked = requireUnlock
         binding.requireUnlockSwitch.setOnCheckedChangeListener { _, isChecked ->
             sharedPreferences.requireUnlock = isChecked
+        }
+
+        binding.allowExternalControlSwitch.isChecked = sharedPreferences.allowExternalControl
+        binding.allowExternalControlSwitch.setOnCheckedChangeListener { _, isChecked ->
+            sharedPreferences.allowExternalControl = isChecked
         }
     }
 }
