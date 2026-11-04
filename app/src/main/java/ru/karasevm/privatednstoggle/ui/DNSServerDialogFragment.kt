@@ -16,6 +16,7 @@ import ru.karasevm.privatednstoggle.data.DnsServerViewModel
 import ru.karasevm.privatednstoggle.data.DnsServerViewModelFactory
 import ru.karasevm.privatednstoggle.databinding.SheetDnsSelectorBinding
 import ru.karasevm.privatednstoggle.model.DnsServer
+import ru.karasevm.privatednstoggle.util.DnsSetting
 import ru.karasevm.privatednstoggle.util.PrivateDNSUtils
 import ru.karasevm.privatednstoggle.util.PrivateDNSUtils.checkForPermission
 
@@ -73,56 +74,47 @@ class DNSServerDialogFragment : DialogFragment() {
             Toast.makeText(
                 context, R.string.permission_missing, Toast.LENGTH_SHORT
             ).show()
-            dialog!!.dismiss()
+            dismiss()
+            return
         }
         adapter.onItemClick = { id ->
             when (id) {
                 OFF_ID -> {
-                    PrivateDNSUtils.setPrivateMode(
+                    PrivateDNSUtils.applyDnsSetting(
                         contentResolver,
-                        PrivateDNSUtils.DNS_MODE_OFF
+                        DnsSetting(PrivateDNSUtils.DNS_MODE_OFF, null)
                     )
-                    PrivateDNSUtils.setPrivateProvider(
-                        contentResolver,
-                        null)
                     Toast.makeText(context, R.string.set_to_off_toast, Toast.LENGTH_SHORT).show()
                 }
 
                 AUTO_ID -> {
-                    PrivateDNSUtils.setPrivateMode(
+                    PrivateDNSUtils.applyDnsSetting(
                         contentResolver,
-                        PrivateDNSUtils.DNS_MODE_AUTO
+                        DnsSetting(PrivateDNSUtils.DNS_MODE_AUTO, null)
                     )
-                    PrivateDNSUtils.setPrivateProvider(
-                        contentResolver,
-                        null)
                     Toast.makeText(context, R.string.set_to_auto_toast, Toast.LENGTH_SHORT).show()
                 }
 
                 else -> {
-                    lifecycleScope.launch {
-                        val server = servers.find { server -> server.id == id }
-                        PrivateDNSUtils.setPrivateMode(
+                    val server = servers.find { server -> server.id == id }
+                    if (server != null) {
+                        PrivateDNSUtils.applyDnsSetting(
                             contentResolver,
-                            PrivateDNSUtils.DNS_MODE_PRIVATE
-                        )
-                        PrivateDNSUtils.setPrivateProvider(
-                            contentResolver,
-                            server?.server
+                            DnsSetting(PrivateDNSUtils.DNS_MODE_PRIVATE, server.server)
                         )
                         Toast.makeText(
                             context,
                             getString(
                                 R.string.set_to_provider_toast,
-                                server?.label?.ifEmpty { server.server }
+                                server.label.ifEmpty { server.server }
                             ),
                             Toast.LENGTH_SHORT
                         ).show()
                     }
                 }
             }
+            // The tile observes the system settings and refreshes itself
             dialog?.dismiss()
-            requireContext().sendBroadcast(Intent("refresh_tile").setPackage(requireContext().packageName))
         }
 
     }
