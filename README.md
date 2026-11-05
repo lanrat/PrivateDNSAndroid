@@ -86,3 +86,4 @@ If you want to contribute code please try to adhere to the following guidelines:
 - Please describe what your code does and how does it do that when sending a PR
 - Before sending a PR please test your change on the oldest and latest supported Android versions (9 and 17 at the time of writing)
 - Run `./gradlew assembleDebug testDebugUnitTest lintDebug` before sending a PR, CI runs the same checks
+- Instrumented tests (`app/src/androidTest`) run on Android 9 and 17 emulators in CI, see `.github/workflows/emulator.yml`. Locally, with a device or emulator attached: `./gradlew connectedDebugAndroidTest`. They change the device's Private DNS setting while they run and restore it afterwards.
