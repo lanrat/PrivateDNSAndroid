@@ -21,8 +21,8 @@ extensions.configure<ApplicationExtension>  {
     }
     defaultConfig {
         applicationId = "ru.karasevm.privatednstoggle"
-        versionCode = 19
-        versionName = "1.11.0"
+        versionCode = 20
+        versionName = "1.12.0"
 
         targetSdk = 37
         minSdk = 28
