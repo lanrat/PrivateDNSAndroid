@@ -29,11 +29,15 @@ class ServerProbeInstrumentedTest {
         }
     }
 
-    /** The providers offered in the add server dialog; fails if one changes its hostname */
+    /**
+     * The providers offered in the add server dialog; fails if one changes its hostname. These
+     * are third-party services, so a failure is retried once to ride out a brief outage.
+     */
     @Test
     fun suggestedServersWork() {
         for (suggestion in SuggestedServers.ALL) {
-            val result = probe(suggestion.server)
+            val result = probe(suggestion.server).takeIf { it is ProbeResult.Working }
+                ?: run { Thread.sleep(5_000); probe(suggestion.server) }
             assertTrue("${suggestion.label} (${suggestion.server}): $result", result is ProbeResult.Working)
         }
     }
