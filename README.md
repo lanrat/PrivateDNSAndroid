@@ -79,4 +79,12 @@ If you want to contribute code please try to adhere to the following guidelines:
 - Please describe what your code does and how does it do that when sending a PR
 - Before sending a PR please test your change on the oldest and latest supported Android versions (9 and 17 at the time of writing)
 - Run `./gradlew assembleDebug testDebugUnitTest lintDebug` before sending a PR, CI runs the same checks
-- Instrumented tests (`app/src/androidTest`) run on Android 9 and 17 emulators in CI, see `.github/workflows/emulator.yml`. Locally, with a device or emulator attached: `./gradlew connectedDebugAndroidTest`. They change the device's Private DNS setting while they run and restore it afterwards.
+- Instrumented tests (`app/src/androidTest`) run on Android 9 and 16 emulators in CI, see `.github/workflows/emulator.yml`. Locally, with a device or emulator attached: `./gradlew connectedDebugAndroidTest`. They change the device's Private DNS setting while they run and restore it afterwards.
+
+### Releasing
+The version comes from git tags: a build is version `1.13.0` on the commit tagged `v1.13.0`, and `1.13.0-4-gabc1234` on later commits (see `app/build.gradle.kts`). To release, tag the commit and push the tag:
+```
+git tag -a v1.13.0 -m "What changed"
+git push origin v1.13.0
+```
+`.github/workflows/release.yml` then tests, builds and signs the APK and publishes a GitHub release with it. The tag's message becomes the start of the release notes. Tags must be `vMAJOR.MINOR.PATCH`, with minor and patch below 100.

@@ -10,6 +10,35 @@ plugins {
     alias(libs.plugins.aboutlibraries.android)
 }
 
+/**
+ * The app version, from the nearest git tag named vMAJOR.MINOR.PATCH, so that a release only
+ * needs a new tag. On the tagged commit it is e.g. "1.13.0"; on later commits e.g.
+ * "1.13.0-4-gabc1234", with the same versionCode. versionCode is
+ * MAJOR * 10000 + MINOR * 100 + PATCH, which grows with every release.
+ * Without git or a matching tag (e.g. a shallow clone or a source archive) it is 0.0.0, which
+ * the release workflow rejects.
+ */
+data class AppVersion(val name: String, val code: Int)
+
+val appVersion: AppVersion = run {
+    val describe = providers.exec {
+        commandLine("git", "describe", "--tags", "--match", "v[0-9]*")
+        isIgnoreExitValue = true
+    }
+    val output = runCatching {
+        describe.standardOutput.asText.get().trim().takeIf { describe.result.get().exitValue == 0 }
+    }.getOrNull()
+    val match = output?.let { Regex("""v(\d+)\.(\d+)\.(\d+)(-\d+-g\p{XDigit}+)?""").matchEntire(it) }
+    if (match == null) {
+        logger.warn("No vMAJOR.MINOR.PATCH git tag found (git describe: $output), using version 0.0.0")
+        AppVersion("0.0.0", 1)
+    } else {
+        val (major, minor, patch) = match.groupValues.subList(1, 4).map { it.toInt() }
+        require(minor < 100 && patch < 100) { "Minor and patch versions must be below 100: $output" }
+        AppVersion(output.removePrefix("v"), major * 10_000 + minor * 100 + patch)
+    }
+}
+
 extensions.configure<ApplicationExtension>  {
     compileSdk {
         version = release(37) {
@@ -23,8 +52,8 @@ extensions.configure<ApplicationExtension>  {
         // Differs from upstream (ru.karasevm.privatednstoggle) so both can be installed. The
         // namespace, and so the class names, stay the same to keep merging from upstream easy.
         applicationId = "com.vorsk.privatednstoggle"
-        versionCode = 20
-        versionName = "1.12.0"
+        versionCode = appVersion.code
+        versionName = appVersion.name
 
         targetSdk = 37
         minSdk = 28

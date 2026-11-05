@@ -1,17 +1,17 @@
 name: Release
 
-# Push a tag named after the versionName in app/build.gradle.kts, e.g.
-#   git tag v1.12.0 && git push origin v1.12.0
-# This builds and tests the release APK and creates a *draft* GitHub release with it.
-# Review the draft and publish it by hand.
+# Releasing only needs a tag named vMAJOR.MINOR.PATCH on the commit to release, e.g.
+#   git tag -a v1.13.0 -m "What changed" && git push origin v1.13.0
+# The app's versionName and versionCode come from the tag (see app/build.gradle.kts). This
+# tests, builds and signs the APK, then publishes a GitHub release with it. The release notes
+# are the tag's message, followed by notes GitHub generates from the changes since the last
+# release.
 #
-# Signing is optional. To sign, add these repository secrets (Settings > Secrets and
-# variables > Actions):
+# Signing needs these repository secrets (Settings > Secrets and variables > Actions):
 #   RELEASE_KEYSTORE_BASE64  the keystore file, base64 encoded (base64 -w0 release.jks)
 #   RELEASE_KEYSTORE_PASSWORD
 #   RELEASE_KEY_ALIAS
 #   RELEASE_KEY_PASSWORD
-# Without them the release gets the unsigned APK, which can be signed locally with apksigner.
 # The APK is built unsigned and signed afterwards, so the build stays reproducible.
 
 on:
@@ -31,23 +31,23 @@ env:
 
 jobs:
   release:
-    name: Build and draft release
+    name: Build and publish release
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          # The version comes from the tags (see app/build.gradle.kts)
+          fetch-depth: 0
 
-      - name: Check the tag matches the app version
+      - name: Check the tag
         run: |
-          version_name=$(sed -n 's/^ *versionName = "\(.*\)"$/\1/p' app/build.gradle.kts)
-          version_code=$(sed -n 's/^ *versionCode = \([0-9]*\)$/\1/p' app/build.gradle.kts)
-          if [ "v$version_name" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match versionName $version_name in app/build.gradle.kts"
+          if ! [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME is not of the form vMAJOR.MINOR.PATCH"
             exit 1
           fi
-          echo "VERSION_NAME=$version_name" >> "$GITHUB_ENV"
-          echo "VERSION_CODE=$version_code" >> "$GITHUB_ENV"
+          echo "VERSION_NAME=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
 
       - name: Set up JDK 21
         uses: actions/setup-java@v6
@@ -66,6 +66,16 @@ jobs:
       - name: Test and build
         run: ./gradlew testDebugUnitTest lintDebug assembleRelease
 
+      - name: Check the APK's version
+        run: |
+          build_tools=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)
+          badging=$("$build_tools/aapt2" dump badging app/build/outputs/apk/release/app-release-unsigned.apk | head -n 1)
+          echo "$badging"
+          if [[ "$badging" != *"versionName='$VERSION_NAME'"* ]]; then
+            echo "::error::The APK's versionName is not $VERSION_NAME"
+            exit 1
+          fi
+
       - name: Sign APK
         env:
           KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
@@ -73,39 +83,35 @@ jobs:
           KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
-          unsigned=app/build/outputs/apk/release/app-release-unsigned.apk
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            apk="$APK_BASENAME-v$VERSION_NAME.apk"
-            keystore="$RUNNER_TEMP/release.jks"
-            echo "$KEYSTORE_BASE64" | base64 -d > "$keystore"
-            build_tools=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)
-            "$build_tools/apksigner" sign \
-              --ks "$keystore" --ks-pass env:KEYSTORE_PASSWORD \
-              --ks-key-alias "$KEY_ALIAS" --key-pass env:KEY_PASSWORD \
-              --v4-signing-enabled false \
-              --out "$apk" "$unsigned"
-            rm -f "$keystore"
-            "$build_tools/apksigner" verify --print-certs "$apk"
-          else
-            apk="$APK_BASENAME-v$VERSION_NAME-unsigned.apk"
-            echo "::warning::No signing key configured, the release gets an unsigned APK"
-            cp "$unsigned" "$apk"
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::No signing key configured, see the secrets at the top of this workflow"
+            exit 1
           fi
+          apk="$APK_BASENAME-v$VERSION_NAME.apk"
+          keystore="$RUNNER_TEMP/release.jks"
+          echo "$KEYSTORE_BASE64" | base64 -d > "$keystore"
+          build_tools=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)
+          "$build_tools/apksigner" sign \
+            --ks "$keystore" --ks-pass env:KEYSTORE_PASSWORD \
+            --ks-key-alias "$KEY_ALIAS" --key-pass env:KEY_PASSWORD \
+            --v4-signing-enabled false \
+            --out "$apk" app/build/outputs/apk/release/app-release-unsigned.apk
+          rm -f "$keystore"
+          "$build_tools/apksigner" verify --print-certs "$apk"
           sha256sum "$apk" > "$apk.sha256"
           echo "APK=$apk" >> "$GITHUB_ENV"
 
-      - name: Create draft release
+      - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Notes from the F-Droid/IzzyOnDroid changelog of this versionCode, if there is one
-          changelog="fastlane/metadata/android/en-US/changelogs/$VERSION_CODE.txt"
-          if [ -f "$changelog" ]; then
-            notes=(--notes-file "$changelog")
-          else
-            echo "::warning::$changelog not found, using generated release notes"
-            notes=(--generate-notes)
+          # The tag's message, if it is an annotated tag; GitHub's generated notes follow it.
+          # Fetched again to be sure to have the tag's own object, which holds the message.
+          git fetch --force origin "refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
+          notes=""
+          if [ "$(git cat-file -t "$GITHUB_REF_NAME")" = tag ]; then
+            notes=$(git tag -l --format='%(contents:subject)%0a%0a%(contents:body)' "$GITHUB_REF_NAME")
           fi
-          gh release create "$GITHUB_REF_NAME" --draft --verify-tag \
-            --title "$GITHUB_REF_NAME" "${notes[@]}" \
+          gh release create "$GITHUB_REF_NAME" --verify-tag \
+            --title "$GITHUB_REF_NAME" --notes "$notes" --generate-notes \
             "$APK" "$APK.sha256"
