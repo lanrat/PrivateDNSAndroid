@@ -16,6 +16,8 @@ import ru.karasevm.privatednstoggle.data.database.DnsServerRoomDatabase
 import ru.karasevm.privatednstoggle.dns.AlarmSwitchBackScheduler
 import ru.karasevm.privatednstoggle.dns.AndroidSystemDnsSettings
 import ru.karasevm.privatednstoggle.dns.DnsController
+import ru.karasevm.privatednstoggle.dns.DotServerProbe
+import ru.karasevm.privatednstoggle.dns.ServerProbe
 import ru.karasevm.privatednstoggle.util.AppPreferences
 import ru.karasevm.privatednstoggle.util.PreferenceHelper
 import ru.karasevm.privatednstoggle.util.SharedAppPreferences
@@ -42,6 +44,7 @@ class PrivateDNSApp : Application() {
         )
     }
     val backupManager by lazy { BackupManager(repository, preferences) }
+    val serverProbe: ServerProbe by lazy { DotServerProbe() }
 
     override fun onCreate() {
         super.onCreate()

@@ -1,20 +1,34 @@
 package ru.karasevm.privatednstoggle.ui
 
 import android.annotation.SuppressLint
+import android.content.res.ColorStateList
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
+import androidx.core.widget.ImageViewCompat
+import com.google.android.material.color.MaterialColors
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
 import ru.karasevm.privatednstoggle.R
+import ru.karasevm.privatednstoggle.dns.ProbeResult
+import ru.karasevm.privatednstoggle.dns.ServerStatus
+import ru.karasevm.privatednstoggle.dns.ServerStatusTracker
 import ru.karasevm.privatednstoggle.model.DnsServer
 
 
-class ServerListRecyclerAdapter(private val showDragHandle: Boolean) :
+/**
+ * The server list, in the main screen (with drag handles and status icons) and in the tile's
+ * server picker.
+ */
+class ServerListRecyclerAdapter(
+    private val showDragHandle: Boolean,
+    private val showStatus: Boolean = false,
+) :
     RecyclerView.Adapter<ServerListRecyclerAdapter.DnsServerViewHolder>() {
 
 
@@ -32,6 +46,18 @@ class ServerListRecyclerAdapter(private val showDragHandle: Boolean) :
     var onItemClick: ((Int) -> Unit)? = null
     var onDragStart: ((DnsServerViewHolder) -> Unit)? = null
 
+    /** Called with a server when its status icon is tapped */
+    var onStatusClick: ((DnsServer) -> Unit)? = null
+
+    private var statuses: Map<String, ServerStatus> = emptyMap()
+
+    /** Shows [statuses] (see [ServerStatusTracker.statuses]) next to the servers */
+    fun setStatuses(statuses: Map<String, ServerStatus>) {
+        if (!showStatus || statuses == this.statuses) return
+        this.statuses = statuses
+        if (items.isNotEmpty()) notifyItemRangeChanged(0, items.size, PAYLOAD_STATUS)
+    }
+
     /**
      * Called to move a server by one position without dragging, for accessibility services
      * (TalkBack, switch access). Gets the old and new position and the server id.
@@ -40,9 +66,10 @@ class ServerListRecyclerAdapter(private val showDragHandle: Boolean) :
     private var items: MutableList<DnsServer> = mutableListOf()
 
     override fun onBindViewHolder(holder: DnsServerViewHolder, position: Int, payloads: List<Any>) {
-        if (payloads.isNotEmpty() && payloads.all { it == PAYLOAD_MOVE_ACTIONS }) {
-            // Only the position changed, see refreshMoveActions
-            if (showDragHandle) updateMoveActions(holder, position)
+        if (payloads.isNotEmpty() && payloads.all { it == PAYLOAD_MOVE_ACTIONS || it == PAYLOAD_STATUS }) {
+            // Only the position (see refreshMoveActions) or the status changed
+            if (PAYLOAD_MOVE_ACTIONS in payloads && showDragHandle) updateMoveActions(holder, position)
+            if (PAYLOAD_STATUS in payloads) bindStatus(holder, items[position])
         } else {
             onBindViewHolder(holder, position)
         }
@@ -69,6 +96,7 @@ class ServerListRecyclerAdapter(private val showDragHandle: Boolean) :
         }
         holder.serverTextView.text = item.server
         holder.id = item.id
+        bindStatus(holder, item)
         if (item.enabled) {
             holder.labelTextView.alpha = 1f
             holder.serverTextView.alpha = 1f
@@ -171,6 +199,7 @@ class ServerListRecyclerAdapter(private val showDragHandle: Boolean) :
         val labelTextView: TextView = view.findViewById(R.id.labelTextView)
         val serverTextView: TextView = view.findViewById(R.id.textView)
         val dragHandle: ImageView = itemView.findViewById(R.id.dragHandle)
+        val statusIcon: ImageView = itemView.findViewById(R.id.statusIcon)
         var id = 0
         val moveActionIds = mutableListOf<Int>()
 
@@ -181,7 +210,34 @@ class ServerListRecyclerAdapter(private val showDragHandle: Boolean) :
         }
     }
 
+    /** Shows the status icon of [item], with its description for accessibility services */
+    private fun bindStatus(holder: DnsServerViewHolder, item: DnsServer) {
+        val icon = holder.statusIcon
+        if (!showStatus) {
+            icon.visibility = View.GONE
+            return
+        }
+        val status = statuses[ServerStatusTracker.key(item.server)]
+        val (drawable, color) = when {
+            status is ServerStatus.Tested && status.result is ProbeResult.Working ->
+                R.drawable.ic_status_working_24 to ContextCompat.getColor(icon.context, R.color.status_working)
+
+            status is ServerStatus.Tested ->
+                R.drawable.ic_status_failed_24 to
+                    MaterialColors.getColor(icon, androidx.appcompat.R.attr.colorError)
+
+            // Testing, or not tested yet
+            else -> R.drawable.ic_status_testing_24 to ContextCompat.getColor(icon.context, R.color.status_testing)
+        }
+        icon.visibility = View.VISIBLE
+        icon.setImageResource(drawable)
+        ImageViewCompat.setImageTintList(icon, ColorStateList.valueOf(color))
+        icon.contentDescription = describeStatus(icon.context, status)
+        icon.setOnClickListener { onStatusClick?.invoke(item) }
+    }
+
     private companion object {
         const val PAYLOAD_MOVE_ACTIONS = "move_actions"
+        const val PAYLOAD_STATUS = "status"
     }
 }

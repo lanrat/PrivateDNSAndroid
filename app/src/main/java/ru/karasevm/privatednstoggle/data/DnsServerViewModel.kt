@@ -5,9 +5,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.asLiveData
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import ru.karasevm.privatednstoggle.PrivateDNSApp
 import ru.karasevm.privatednstoggle.dns.DnsController
+import ru.karasevm.privatednstoggle.dns.ServerProbe
+import ru.karasevm.privatednstoggle.dns.ServerStatus
+import ru.karasevm.privatednstoggle.dns.ServerStatusTracker
 import ru.karasevm.privatednstoggle.model.DnsServer
 
 /**
@@ -18,9 +22,22 @@ class DnsServerViewModel(
     private val dnsServerRepository: DnsServerRepository,
     private val backupManager: BackupManager,
     private val dnsController: DnsController,
+    serverProbe: ServerProbe,
 ) : ViewModel() {
 
     val allServers: LiveData<List<DnsServer>> = dnsServerRepository.allServers.asLiveData()
+
+    private val statusTracker = ServerStatusTracker(serverProbe, viewModelScope)
+
+    /** Whether each server works, keyed by [ServerStatusTracker.key] */
+    val serverStatuses: StateFlow<Map<String, ServerStatus>> = statusTracker.statuses
+
+    /**
+     * Tests whether [servers] work. Skips servers with a result newer than [maxAgeMs];
+     * 0 tests them all again.
+     */
+    fun testServers(servers: Collection<String>, maxAgeMs: Long = 0) =
+        statusTracker.test(servers, maxAgeMs)
 
     fun getAll() = dnsServerRepository.getAll()
 
@@ -86,7 +103,7 @@ class DnsServerViewModelFactory(private val app: PrivateDNSApp) : ViewModelProvi
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(DnsServerViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return DnsServerViewModel(app.repository, app.backupManager, app.dnsController) as T
+            return DnsServerViewModel(app.repository, app.backupManager, app.dnsController, app.serverProbe) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

@@ -13,4 +13,7 @@
     <color name="md_theme_dark_secondary">#CCC2DC</color>
     <color name="md_theme_dark_tertiary">#EFB8C8</color>
     <color name="md_theme_dark_background">#1C1B1F</color>
+    <!-- Server status icons in the list; the error state uses the theme's colorError -->
+    <color name="status_working">#2E7D32</color>
+    <color name="status_testing">#9A6700</color>
 </resources>

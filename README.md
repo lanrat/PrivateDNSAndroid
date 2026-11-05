@@ -42,6 +42,9 @@ For the app to work properly you'll need to provide it permissions via ADB:
 
 6. That's it, you should have the app installed.
 
+## Server status
+When you open the app, each saved server is tested the way Android checks a Private DNS server: a DNS-over-TLS connection on port 853, a certificate valid for the server's name, and an answer to one DNS query. The icon next to it shows the result (working, testing, or not working); tap it for details, or use the refresh button to test again. Tests run over your current network, so a network that blocks port 853 makes every server fail, as Private DNS itself would there. This is the only reason the app has the Internet permission; it only contacts the servers you added.
+
 ## Switching back automatically
 Turn on **"Turn Private DNS back on automatically"** in the app's Options to have Private DNS switch back on after 5 minutes, 15 minutes, 30 minutes, 1, 6 or 24 hours (you choose) when you turn it off or to auto, e.g. to briefly get past an ad-blocking DNS. The tile shows when it will switch back (Android 10+). It is started by the tile, the server picker and the app's shortcuts, but not by other apps, so automations that turn Private DNS off are not undone. Turning Private DNS back on cancels it. To pick the time each time instead, long-press the tile and choose **Off for…**; this works whether or not the option is on. Android may run it a few minutes late, in which case it happens as soon as you open the quick settings or the app.
 

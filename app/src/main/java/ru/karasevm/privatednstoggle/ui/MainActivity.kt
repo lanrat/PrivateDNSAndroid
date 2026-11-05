@@ -23,9 +23,12 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -34,6 +37,9 @@ import ru.karasevm.privatednstoggle.app
 import ru.karasevm.privatednstoggle.data.DnsServerViewModel
 import ru.karasevm.privatednstoggle.data.DnsServerViewModelFactory
 import ru.karasevm.privatednstoggle.databinding.ActivityMainBinding
+import ru.karasevm.privatednstoggle.dns.ProbeResult
+import ru.karasevm.privatednstoggle.dns.ServerStatus
+import ru.karasevm.privatednstoggle.dns.ServerStatusTracker
 import ru.karasevm.privatednstoggle.model.DnsServer
 import java.io.IOException
 import kotlin.math.roundToInt
@@ -85,6 +91,14 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
         handleWindowInsets()
     }
 
+    override fun onStart() {
+        super.onStart()
+        // Test the servers whenever the list is shown, unless they were tested just now
+        dnsServerViewModel.allServers.value?.let { servers ->
+            dnsServerViewModel.testServers(servers.map { it.server }, maxAgeMs = RETEST_AFTER_MS)
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         // Run a switch-back whose alarm was delayed
@@ -95,16 +109,24 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
     }
 
     private fun setUpServerList() {
-        adapter = ServerListRecyclerAdapter(true)
+        adapter = ServerListRecyclerAdapter(showDragHandle = true, showStatus = true)
         binding.recyclerView.layoutManager = LinearLayoutManager(this)
         binding.recyclerView.adapter = adapter
 
         dnsServerViewModel.allServers.observe(this) { servers ->
             adapter.submitList(servers)
+            // New or changed servers get tested, the others keep their recent result
+            dnsServerViewModel.testServers(servers.map { it.server }, maxAgeMs = RETEST_AFTER_MS)
             val emptyVisibility = if (servers.isEmpty()) View.VISIBLE else View.GONE
             binding.emptyView.visibility = emptyVisibility
             binding.emptyViewHint.visibility = emptyVisibility
         }
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                dnsServerViewModel.serverStatuses.collect { adapter.setStatuses(it) }
+            }
+        }
+        adapter.onStatusClick = { server -> showServerStatus(server) }
         adapter.onItemClick = { id ->
             // Synchronous, so the dialog can't be shown after the activity was stopped, and
             // a double tap doesn't open two
@@ -128,8 +150,31 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
         }
     }
 
+    /** Explains the status of [server], with an option to test it again */
+    private fun showServerStatus(server: DnsServer) {
+        val status = dnsServerViewModel.serverStatuses.value[ServerStatusTracker.key(server.server)]
+        val detail = ((status as? ServerStatus.Tested)?.result as? ProbeResult.Failed)?.detail
+        val message = listOfNotNull(
+            describeStatus(this, status),
+            detail?.let { "($it)" },
+            getString(R.string.status_explanation)
+        ).joinToString("\n\n")
+        MaterialAlertDialogBuilder(this)
+            .setTitle(server.label.ifEmpty { server.server })
+            .setMessage(message)
+            .setPositiveButton(R.string.ok, null)
+            .setNeutralButton(R.string.status_test_again) { _, _ ->
+                dnsServerViewModel.testServers(listOf(server.server))
+            }
+            .show()
+    }
+
     private fun onMenuItemClick(itemId: Int): Boolean {
         when (itemId) {
+            R.id.test_servers -> dnsServerViewModel.allServers.value?.let { servers ->
+                dnsServerViewModel.testServers(servers.map { it.server })
+            }
+
             R.id.privacy_policy -> startActivity(
                 Intent(Intent.ACTION_VIEW, "https://karasevm.github.io/PrivateDNSAndroid/privacy_policy".toUri())
             )
@@ -283,5 +328,8 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
     private companion object {
         const val TAG = "MainActivity"
         const val EDIT_SERVER_TAG = "edit_server"
+
+        /** Results younger than this are kept when the list is shown again */
+        const val RETEST_AFTER_MS = 60_000L
     }
 }
