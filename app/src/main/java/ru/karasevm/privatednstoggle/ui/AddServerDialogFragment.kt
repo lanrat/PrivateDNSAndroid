@@ -8,12 +8,19 @@ import android.text.Editable
 import android.text.TextUtils
 import android.text.TextWatcher
 import androidx.appcompat.app.AlertDialog
+import androidx.core.view.isVisible
 import androidx.fragment.app.DialogFragment
+import androidx.fragment.app.activityViewModels
+import com.google.android.material.chip.Chip
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import ru.karasevm.privatednstoggle.R
+import ru.karasevm.privatednstoggle.app
+import ru.karasevm.privatednstoggle.data.DnsServerViewModel
+import ru.karasevm.privatednstoggle.data.DnsServerViewModelFactory
 import ru.karasevm.privatednstoggle.databinding.DialogAddBinding
 import ru.karasevm.privatednstoggle.model.DnsServer
 import ru.karasevm.privatednstoggle.util.ServerValidation
+import ru.karasevm.privatednstoggle.util.SuggestedServers
 
 
 class AddServerDialogFragment : DialogFragment() {
@@ -32,6 +39,11 @@ class AddServerDialogFragment : DialogFragment() {
             )
         }
     }
+    // Shared with MainActivity, which created it with the same factory
+    private val dnsServerViewModel: DnsServerViewModel by activityViewModels {
+        DnsServerViewModelFactory(requireContext().app)
+    }
+
     // Use this instance of the interface to deliver action events
     private lateinit var listener: NoticeDialogListener
 
@@ -106,6 +118,7 @@ class AddServerDialogFragment : DialogFragment() {
                         listener.onDeleteItemClicked(dnsServer.id)
                     }
             } else {
+                showSuggestions()
                 builder.setTitle(R.string.add_server)
                     .setView(view)
                     // Add action buttons
@@ -125,6 +138,29 @@ class AddServerDialogFragment : DialogFragment() {
             }
             builder.create()
         } ?: throw IllegalStateException("Activity cannot be null")
+    }
+
+    /**
+     * Offers the well-known providers that aren't saved yet; tapping one fills in the fields.
+     * Hidden once all of them are saved.
+     */
+    private fun showSuggestions() {
+        dnsServerViewModel.allServers.observe(this) { saved ->
+            val suggestions = SuggestedServers.notSaved(saved.map { it.server })
+            binding.suggestionsLabel.isVisible = suggestions.isNotEmpty()
+            binding.suggestionGroup.isVisible = suggestions.isNotEmpty()
+            binding.suggestionGroup.removeAllViews()
+            for (suggestion in suggestions) {
+                val chip = layoutInflater.inflate(R.layout.item_suggestion_chip, binding.suggestionGroup, false) as Chip
+                chip.text = suggestion.label
+                chip.setOnClickListener {
+                    binding.editTextServerHint.setText(suggestion.label)
+                    binding.editTextServerAddr.setText(suggestion.server)
+                    binding.editTextServerAddr.setSelection(suggestion.server.length)
+                }
+                binding.suggestionGroup.addView(chip)
+            }
+        }
     }
 
     private var isTextWatcherAdded = false

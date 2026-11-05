@@ -8,6 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import ru.karasevm.privatednstoggle.Device
+import ru.karasevm.privatednstoggle.util.SuggestedServers
 
 /**
  * The probe on a real Android network stack against public DNS-over-TLS servers, with
@@ -25,6 +26,15 @@ class ServerProbeInstrumentedTest {
         for (server in listOf("dns.google", "one.one.one.one", "dns.google.")) {
             val result = probe(server)
             assertTrue("$server: $result", result is ProbeResult.Working)
+        }
+    }
+
+    /** The providers offered in the add server dialog; fails if one changes its hostname */
+    @Test
+    fun suggestedServersWork() {
+        for (suggestion in SuggestedServers.ALL) {
+            val result = probe(suggestion.server)
+            assertTrue("${suggestion.label} (${suggestion.server}): $result", result is ProbeResult.Working)
         }
     }
 

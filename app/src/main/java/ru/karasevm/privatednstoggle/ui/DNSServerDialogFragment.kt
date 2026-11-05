@@ -50,9 +50,6 @@ class DNSServerDialogFragment : DialogFragment() {
             lifecycleScope.launch {
                 dnsServerViewModel.getAll().collect { s ->
                     servers = s.toMutableList()
-                    if (servers.isEmpty()) {
-                        servers.add(DnsServer(0, "dns.google"))
-                    }
                     servers.add(0, DnsServer(AUTO_ID, resources.getString(R.string.dns_auto)))
                     // "Off for…" needs a server to switch back to
                     if (controller.switchBackTarget() != null) {

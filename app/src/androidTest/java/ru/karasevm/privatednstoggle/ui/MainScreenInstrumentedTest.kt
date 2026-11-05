@@ -8,6 +8,7 @@ import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -98,6 +99,24 @@ class MainScreenInstrumentedTest {
             assertNotNull(device.wait(Until.findObject(By.textStartsWith("Choose which options")), 5_000))
             Device.screenshot("options")
             device.pressBack()
+        }
+    }
+
+    @Test
+    fun addDialogSuggestsProvidersNotYetSaved() {
+        ActivityScenario.launch(MainActivity::class.java).use {
+            assertNotNull(device.wait(Until.findObject(By.text("Google")), 10_000))
+            device.findObject(By.desc("Add Server")).click()
+            val group = device.wait(Until.findObject(By.res(Device.packageName, "suggestionGroup")), 5_000)
+            assertNotNull(group)
+            // Google and Cloudflare are saved in setUp
+            assertEquals(listOf("Quad9", "AdGuard", "Mullvad"), group.children.map { it.text })
+            Device.screenshot("add-server")
+
+            group.findObject(By.text("Quad9")).click()
+            val address = device.findObject(By.res(Device.packageName, "editTextServerAddr"))
+            assertTrue(Device.waitUntil { address.text == "dns.quad9.net" })
+            assertEquals("Quad9", device.findObject(By.res(Device.packageName, "editTextServerHint")).text)
         }
     }
 
