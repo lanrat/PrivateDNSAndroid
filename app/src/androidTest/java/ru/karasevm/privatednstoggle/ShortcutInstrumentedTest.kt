@@ -45,10 +45,13 @@ class ShortcutInstrumentedTest {
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     )
 
-    /** Starts the shortcut as another app would: from the shell's uid */
-    private fun startFromShell(component: String, action: String) = Device.shell(
-        "am start -W -n $component -a ${ShortcutHandlerActivity.ACTION_SHORTCUT} -d $action"
-    )
+    /**
+     * Starts the shortcut as another app would: from the shell's uid. Without -W, which waits
+     * forever on Android 9 for an activity that finishes without drawing.
+     */
+    private fun startFromShell(component: String, action: String) {
+        Device.shell("am start -n $component -a ${ShortcutHandlerActivity.ACTION_SHORTCUT} -d $action")
+    }
 
     @Test
     fun ownShortcutsWork() {
@@ -62,9 +65,9 @@ class ShortcutInstrumentedTest {
 
     @Test
     fun otherAppsCantStartTheInternalActivity() {
-        val output = startFromShell(internal, "privatednstoggle://turn_off")
-        assertTrue(output, output.contains("Permission Denial") || output.contains("not exported") || output.contains("Error"))
-        Thread.sleep(1_000)
+        // am reports the permission denial on stderr, which isn't captured; check the effect
+        startFromShell(internal, "privatednstoggle://turn_off")
+        Thread.sleep(2_000)
         assertEquals("hostname", Device.privateDnsMode())
     }
 

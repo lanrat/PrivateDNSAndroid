@@ -68,8 +68,14 @@ class MainScreenInstrumentedTest {
             Device.screenshot("status-details")
             device.pressBack()
 
-            // Options dialog
-            device.findObject(By.desc("Options")).click()
+            // Options dialog, from the toolbar or, on narrow screens, the overflow menu
+            val options = device.findObject(By.desc("Options"))
+            if (options != null) {
+                options.click()
+            } else {
+                device.findObject(By.desc("More options")).click()
+                device.wait(Until.findObject(By.text("Options")), 5_000).click()
+            }
             assertNotNull(device.wait(Until.findObject(By.textStartsWith("Turn Private DNS back on")), 5_000))
             Device.screenshot("options")
             device.pressBack()
@@ -85,6 +91,8 @@ class MainScreenInstrumentedTest {
 
     @Test
     fun serverPickerFromTheTile() {
+        // "Off for…" is only offered with a hostname to switch back to
+        Device.setPrivateDns("off", "dns.google")
         ActivityScenario.launch(SettingsDialogActivity::class.java).use {
             assertNotNull(device.wait(Until.findObject(By.text("Cloudflare")), 10_000))
             assertNotNull(device.findObject(By.text("Off for…")))

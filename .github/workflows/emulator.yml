@@ -27,8 +27,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # minSdk and the newest platform
-        api-level: ["28", "37.0"]
+        # minSdk and a recent platform. (The Android 17 image, 37.0, didn't finish booting on
+        # GitHub's runners within 10 minutes.)
+        api-level: ["28", "36"]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
