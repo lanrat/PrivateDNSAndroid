@@ -4,12 +4,15 @@ import android.content.Context
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.provider.Settings
+import android.util.Log
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.uiautomator.UiDevice
 import org.junit.rules.ExternalResource
 import org.junit.rules.TestWatcher
 import org.junit.runner.Description
 import ru.karasevm.privatednstoggle.data.database.DnsServerRoomDatabase
 import ru.karasevm.privatednstoggle.model.DnsServer
+import java.io.ByteArrayOutputStream
 
 /** Helpers for instrumented tests on a device or emulator */
 object Device {
@@ -68,18 +71,30 @@ object Device {
 }
 
 /**
- * On a failing test, saves a screenshot and the UI hierarchy (collected by the emulator
- * workflow) and prints the visible text, so the CI log shows what was on screen.
+ * On a failing test, saves a screenshot (collected by the emulator workflow) and logs the
+ * focused window and the visible text, which the workflow prints, so CI shows what was on screen.
  */
 class FailureEvidenceRule : TestWatcher() {
     override fun failed(e: Throwable?, description: Description) {
-        val name = "failed-${description.methodName}"
-        Device.screenshot(name)
-        Device.shell("uiautomator dump ${Device.SCREENSHOTS}/api${Build.VERSION.SDK_INT}-$name.xml")
-        val texts = Device.shell("cat ${Device.SCREENSHOTS}/api${Build.VERSION.SDK_INT}-$name.xml")
-            .split("text=\"", "content-desc=\"").drop(1).map { it.substringBefore('"') }.filter { it.isNotBlank() }
-        System.err.println("On screen when ${description.methodName} failed: $texts")
-        android.util.Log.e("FailureEvidence", "On screen when ${description.methodName} failed: $texts")
+        val name = description.methodName
+        Device.screenshot("failed-$name")
+        val focus = Device.shell("dumpsys window windows").lines()
+            .filter { "mCurrentFocus" in it || "mFocusedApp" in it }.map { it.trim() }
+        // In process: a shell `uiautomator dump` conflicts with the test's own UiAutomation
+        val texts = try {
+            val xml = ByteArrayOutputStream()
+                .also { UiDevice.getInstance(Device.instrumentation).dumpWindowHierarchy(it) }
+                .toString()
+            Regex("""(?:text|content-desc)="([^"]+)"""").findAll(xml).map { it.groupValues[1] }.toList()
+        } catch (t: Throwable) {
+            listOf("hierarchy unavailable: $t")
+        }
+        Log.e(TAG, "$name failed. Focus: $focus")
+        Log.e(TAG, "$name failed. On screen: $texts")
+    }
+
+    companion object {
+        const val TAG = "FailureEvidence"
     }
 }
 

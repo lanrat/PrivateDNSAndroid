@@ -1,5 +1,6 @@
 package ru.karasevm.privatednstoggle.ui
 
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.uiautomator.By
@@ -37,14 +38,26 @@ class MainScreenInstrumentedTest {
             DnsServer(server = "one.one.one.one", label = "Cloudflare"),
             DnsServer(server = "does-not-exist.invalid", label = "Broken"),
         )
-        Device.shell("cmd uimode night no")
         Device.shell("input keyevent KEYCODE_WAKEUP")
         Device.shell("wm dismiss-keyguard")
+        dismissNotRespondingDialog()
     }
 
     @After
-    fun tearDown() {
-        Device.shell("cmd uimode night no")
+    fun tearDown() = setAppNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
+
+    /**
+     * Dark mode for the app only. Changing it system-wide (cmd uimode) restarts the launcher
+     * and System UI, which slow emulators may not finish before the next test.
+     */
+    private fun setAppNightMode(mode: Int) =
+        Device.instrumentation.runOnMainSync { AppCompatDelegate.setDefaultNightMode(mode) }
+
+    /** A slow emulator may show "isn't responding" for a system app; keep waiting */
+    private fun dismissNotRespondingDialog() {
+        if (device.hasObject(By.textContains("isn't responding"))) {
+            device.findObject(By.text("Wait"))?.click() ?: device.pressBack()
+        }
     }
 
     private fun countWithDescription(prefix: String) = device.findObjects(By.descStartsWith(prefix)).size
@@ -54,7 +67,8 @@ class MainScreenInstrumentedTest {
             countWithDescription("Working") >= 2 && countWithDescription("Not working") >= 1
         }
         assertTrue(
-            "statuses: ${device.findObjects(By.res(Device.packageName, "statusIcon")).map { it.contentDescription }}",
+            "statuses: ${device.findObjects(By.res(Device.packageName, "statusIcon")).map { it.contentDescription }}" +
+                ", descriptions: ${device.findObjects(By.descContains(" ")).map { it.contentDescription }}",
             done
         )
     }
@@ -80,7 +94,8 @@ class MainScreenInstrumentedTest {
                 device.findObject(By.desc("More options")).click()
                 device.wait(Until.findObject(By.text("Options")), 5_000).click()
             }
-            assertNotNull(device.wait(Until.findObject(By.textStartsWith("Turn Private DNS back on")), 5_000))
+            // The dialog's first line; later ones may be below the fold on small screens
+            assertNotNull(device.wait(Until.findObject(By.textStartsWith("Choose which options")), 5_000))
             Device.screenshot("options")
             device.pressBack()
         }
@@ -88,8 +103,7 @@ class MainScreenInstrumentedTest {
 
     @Test
     fun serverListInDarkMode() {
-        Device.shell("cmd uimode night yes")
-        Thread.sleep(1_000)
+        setAppNightMode(AppCompatDelegate.MODE_NIGHT_YES)
         ActivityScenario.launch(MainActivity::class.java).use {
             assertNotNull(device.wait(Until.findObject(By.text("Google")), 10_000))
             waitForStatuses()

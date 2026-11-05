@@ -24,6 +24,8 @@ timeout 1200 adb shell am instrument -w \
 status=0
 grep -q '^OK (' "$out/instrument.txt" || status=1
 
+echo "--- what was on screen when tests failed ---"
+adb logcat -d -s FailureEvidence:E || true
 echo "--- app crashes in logcat ---"
 adb logcat -d -b crash || true
 adb pull /data/local/tmp/screenshots "$out/" || true
