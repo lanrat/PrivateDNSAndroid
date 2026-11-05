@@ -24,7 +24,7 @@ class ShortcutInstrumentedTest {
     private val external = "${Device.packageName}/${ShortcutHandlerActivity.EXTERNAL_ACTIVITY}"
 
     @Before
-    fun setUp() = runBlocking {
+    fun setUp(): Unit = runBlocking {
         Device.setSavedServers(DnsServer(server = "dns.google"))
         Device.context.app.preferences.allowExternalControl = false
         Device.context.app.preferences.autoRevertEnabled = false

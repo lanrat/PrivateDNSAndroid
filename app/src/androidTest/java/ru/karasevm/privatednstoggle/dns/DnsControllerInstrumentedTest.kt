@@ -48,7 +48,7 @@ class DnsControllerInstrumentedTest {
     )
 
     @Before
-    fun setUp() = runBlocking {
+    fun setUp(): Unit = runBlocking {
         database.dnsServerDao().insertAllIfAbsent(
             listOf(DnsServer(server = "dns.google"), DnsServer(server = "one.one.one.one"))
         )
@@ -63,7 +63,7 @@ class DnsControllerInstrumentedTest {
     }
 
     @Test
-    fun cycleWritesTheSystemSetting() = runBlocking {
+    fun cycleWritesTheSystemSetting(): Unit = runBlocking {
         controller.cycle()
         assertEquals("hostname", Device.privateDnsMode())
         assertEquals("dns.google", Device.privateDnsSpecifier())

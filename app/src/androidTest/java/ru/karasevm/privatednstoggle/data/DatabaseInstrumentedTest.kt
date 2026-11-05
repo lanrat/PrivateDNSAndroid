@@ -62,7 +62,7 @@ class DatabaseInstrumentedTest {
     }
 
     @Test
-    fun daoQueriesOnTheRealDatabase() = runBlocking {
+    fun daoQueriesOnTheRealDatabase(): Unit = runBlocking {
         val database = Room.inMemoryDatabaseBuilder(Device.context, DnsServerRoomDatabase::class.java).build()
         try {
             val dao = database.dnsServerDao()

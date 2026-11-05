@@ -87,6 +87,8 @@ dependencies {
     implementation(libs.androidx.constraintlayout)
     implementation(libs.guava)
     implementation(libs.kotlinx.serialization.json)
+    // Used directly; also keeps the instrumented tests on the same version (they run with the app's copy)
+    implementation(libs.kotlinx.coroutines.android)
 
     implementation(libs.shizuku.api)
     implementation(libs.shizuku.provider)

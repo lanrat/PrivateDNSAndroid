@@ -24,7 +24,7 @@ class TileInstrumentedTest {
     private val tile = "${Device.packageName}/ru.karasevm.privatednstoggle.service.DnsTileService"
 
     @Before
-    fun setUp() = runBlocking {
+    fun setUp(): Unit = runBlocking {
         assumeTrue("cmd statusbar click-tile needs Android 13", Build.VERSION.SDK_INT >= 33)
         Device.setSavedServers(DnsServer(server = "dns.google"), DnsServer(server = "one.one.one.one"))
         Device.context.app.preferences.apply {

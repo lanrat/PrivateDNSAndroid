@@ -27,7 +27,7 @@ class MainScreenInstrumentedTest {
     private val device = UiDevice.getInstance(Device.instrumentation)
 
     @Before
-    fun setUp() = runBlocking {
+    fun setUp(): Unit = runBlocking {
         Device.setSavedServers(
             DnsServer(server = "dns.google", label = "Google"),
             DnsServer(server = "one.one.one.one", label = "Cloudflare"),
