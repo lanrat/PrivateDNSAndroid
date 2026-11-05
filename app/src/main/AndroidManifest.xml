@@ -7,6 +7,8 @@
         tools:ignore="ProtectedPermissions" />
     <!-- Tests whether the saved Private DNS servers work (DNS-over-TLS on port 853) -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Reads the network's DNS servers, to look up Private DNS servers the way Android does -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Restores a pending automatic switch back to Private DNS after a reboot -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 

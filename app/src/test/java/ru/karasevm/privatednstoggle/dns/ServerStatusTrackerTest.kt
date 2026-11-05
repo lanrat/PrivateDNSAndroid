@@ -104,4 +104,15 @@ class ServerStatusTrackerTest {
         advanceUntilIdle()
         assertEquals(4, tracker.statuses.value.values.count { it is ServerStatus.Tested })
     }
+
+    @Test
+    fun aThrowingProbeIsReportedAsFailed() = runTest {
+        val tracker = tracker({ throw IllegalArgumentException("boom") })
+
+        tracker.test(listOf("a.example"))
+        advanceUntilIdle()
+
+        val status = tracker.statuses.value["a.example"] as ServerStatus.Tested
+        assertEquals(ProbeResult.Reason.OTHER, (status.result as ProbeResult.Failed).reason)
+    }
 }

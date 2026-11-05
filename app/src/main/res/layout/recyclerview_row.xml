@@ -11,12 +11,12 @@
     <!-- Whether the server works; only in the main list. Tap for details. -->
     <ImageView
         android:id="@+id/statusIcon"
-        android:layout_width="44dp"
-        android:layout_height="44dp"
-        android:layout_marginStart="10dp"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginStart="8dp"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="@string/status_not_tested"
-        android:padding="10dp"
+        android:padding="12dp"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"

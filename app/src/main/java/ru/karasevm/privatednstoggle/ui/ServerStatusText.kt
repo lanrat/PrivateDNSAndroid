@@ -18,6 +18,8 @@ fun describeStatus(context: Context, status: ServerStatus?): String = when (stat
                 ProbeResult.Reason.TLS_FAILED -> R.string.status_failed_tls
                 ProbeResult.Reason.CERTIFICATE_MISMATCH -> R.string.status_failed_certificate
                 ProbeResult.Reason.NO_ANSWER -> R.string.status_failed_no_answer
+                ProbeResult.Reason.TIMED_OUT -> R.string.status_failed_timeout
+                ProbeResult.Reason.OTHER -> R.string.status_failed_other
             }
         )
     }

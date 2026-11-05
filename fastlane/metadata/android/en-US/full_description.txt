@@ -12,4 +12,6 @@
   <a href="https://karasevm.github.io/PrivateDNSAndroid/">
     manually through adb
   </a>.
+  Uses INTERNET and ACCESS_NETWORK_STATE only to test whether the saved servers work:
+  it connects to those servers and asks the network's DNS servers for their addresses.
 </p>

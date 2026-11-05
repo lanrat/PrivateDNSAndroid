@@ -79,11 +79,13 @@
     <string name="status_not_tested">Not tested yet</string>
     <string name="status_testing">Testing…</string>
     <string name="status_working">Working, answered in %1$d ms</string>
-    <string name="status_failed_hostname">Not working: the server name couldn\'t be looked up</string>
+    <string name="status_failed_hostname">Not working: the server name couldn\'t be looked up on this network</string>
     <string name="status_failed_unreachable">Not working: couldn\'t connect to port 853. This network may block Private DNS.</string>
     <string name="status_failed_tls">Not working: the secure connection failed</string>
     <string name="status_failed_certificate">Not working: the server\'s certificate isn\'t valid for this name</string>
-    <string name="status_failed_no_answer">Not working: the server didn\'t answer a test query</string>
+    <string name="status_failed_no_answer">Not working: the server didn\'t answer a test query correctly</string>
+    <string name="status_failed_timeout">Not working: the test took too long</string>
+    <string name="status_failed_other">Not working: the test failed</string>
     <string name="status_explanation">Tested from this device\'s current network with a DNS-over-TLS query, like Android checks a Private DNS server.</string>
     <string name="status_test_again">Test again</string>
     <string name="auto_revert_delay_label">Turn back on after</string>

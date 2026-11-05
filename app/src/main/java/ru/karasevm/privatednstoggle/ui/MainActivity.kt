@@ -115,8 +115,9 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
 
         dnsServerViewModel.allServers.observe(this) { servers ->
             adapter.submitList(servers)
-            // New or changed servers get tested, the others keep their recent result
-            dnsServerViewModel.testServers(servers.map { it.server }, maxAgeMs = RETEST_AFTER_MS)
+            // Only new or renamed servers get tested here; reordering or editing a label
+            // doesn't test the others again
+            dnsServerViewModel.testServers(servers.map { it.server }, maxAgeMs = Long.MAX_VALUE)
             val emptyVisibility = if (servers.isEmpty()) View.VISIBLE else View.GONE
             binding.emptyView.visibility = emptyVisibility
             binding.emptyViewHint.visibility = emptyVisibility

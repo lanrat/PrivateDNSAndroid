@@ -1,5 +1,6 @@
 package ru.karasevm.privatednstoggle.dns
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -50,7 +51,14 @@ class ServerStatusTracker(
             if (status is ServerStatus.Tested && maxAgeMs > 0 && now - status.at < maxAgeMs) continue
             set(server, ServerStatus.Testing)
             running[server] = scope.launch {
-                val result = permits.withPermit { probe.probe(server) }
+                val result = try {
+                    permits.withPermit { probe.probe(server) }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // A probe shouldn't throw, but an exception here would crash the app
+                    ProbeResult.Failed(ProbeResult.Reason.OTHER, e.toString())
+                }
                 set(server, ServerStatus.Tested(result, now()))
             }
         }
