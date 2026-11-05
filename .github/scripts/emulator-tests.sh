@@ -8,7 +8,7 @@
 set -u
 
 out=emulator-output
-app_package=ru.karasevm.privatednstoggle.dev
+app_package=com.vorsk.privatednstoggle.dev
 mkdir -p "$out"
 
 ./gradlew installDebug installDebugAndroidTest --console=plain || exit 1

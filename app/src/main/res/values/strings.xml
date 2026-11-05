@@ -71,7 +71,7 @@
     <string name="permission_shizuku_text">Shizuku</string>
     <string name="permission_shizuku_url">https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api</string>
     <string name="permission_manual_text">instructions</string>
-    <string name="permission_manual_url">https://karasevm.github.io/PrivateDNSAndroid/</string>
+    <string name="permission_manual_url" translatable="false">https://github.com/lanrat/PrivateDNSAndroid#manual</string>
     <string name="allow_external_control_setting">Allow other apps (e.g. Tasker) to change Private DNS through shortcuts</string>
     <string name="external_control_disabled_toast">Other apps are not allowed to change Private DNS. You can allow it in the app options.</string>
     <string name="shortcut_picker_title">Choose a shortcut</string>

@@ -1,8 +1,9 @@
-- Turn Private DNS off for a while: it switches back on after the time you pick
+- Turn Private DNS off for a set time, then back on
 - See whether each saved server works (uses the new internet permission)
 - Suggested providers when adding a server
 - Shorter launcher name, "Private DNS"
 - Add shortcuts from your launcher's shortcut list
-- Other apps (e.g. Tasker) can change Private DNS only if you allow it in Options
-- Server addresses are no longer case-sensitive; duplicates are merged
+- Other apps (e.g. Tasker) can change Private DNS only if allowed in Options
+- Server addresses ignore case; duplicates are merged
+- Installs alongside the original app (new app ID)
 - Bug fixes, and updates for Android 17

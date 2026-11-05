@@ -64,5 +64,4 @@
     <string name="permission_shizuku_text">Shizuku</string>
     <string name="permission_shizuku_url">https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api</string>
     <string name="permission_manual_text">petunjuk</string>
-    <string name="permission_manual_url">https://karasevm.github.io/PrivateDNSAndroid/</string>
 </resources>

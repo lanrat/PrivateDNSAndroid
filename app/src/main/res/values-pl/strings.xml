@@ -60,7 +60,6 @@
     <string name="permission_shizuku_text">Shizuku</string>
     <string name="permission_shizuku_url">https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api</string>
     <string name="permission_manual_text">instrukcje</string>
-    <string name="permission_manual_url">https://karasevm.github.io/PrivateDNSAndroid/</string>
     <string name="permission_dialog_title">Wymagane przydzielenie uprawnień</string>
     <string name="permission_intro">Do zmiany ustawień prywatnego serwera DNS systemu, należy ręcznie przydzielić uprawnienie WRITE_SECURE_SETTINGS.</string>
     <string name="permission_how_title">W jaki sposób przydzielić uprawnienie</string>

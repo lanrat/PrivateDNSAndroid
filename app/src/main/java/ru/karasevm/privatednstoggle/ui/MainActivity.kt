@@ -177,7 +177,7 @@ class MainActivity : AppCompatActivity(), AddServerDialogFragment.NoticeDialogLi
             }
 
             R.id.privacy_policy -> startActivity(
-                Intent(Intent.ACTION_VIEW, "https://karasevm.github.io/PrivateDNSAndroid/privacy_policy".toUri())
+                Intent(Intent.ACTION_VIEW, "https://github.com/lanrat/PrivateDNSAndroid/blob/main/PRIVACY.md".toUri())
             )
 
             R.id.export_settings_clipboard -> lifecycleScope.launch {

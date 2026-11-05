@@ -7,7 +7,7 @@
         android:shortcutShortLabel="@string/shortcut_do_cycle">
         <intent
             android:action="ru.karasevm.privatednstoggle.action.SHORTCUT"
-            android:targetPackage="ru.karasevm.privatednstoggle"
+            android:targetPackage="com.vorsk.privatednstoggle"
             android:targetClass="ru.karasevm.privatednstoggle.ShortcutHandlerActivity"
             android:data="privatednstoggle://do_cycle"/>
     </shortcut>
@@ -18,7 +18,7 @@
         android:shortcutShortLabel="@string/shortcut_switch_mode">
         <intent
             android:action="ru.karasevm.privatednstoggle.action.SHORTCUT"
-            android:targetPackage="ru.karasevm.privatednstoggle"
+            android:targetPackage="com.vorsk.privatednstoggle"
             android:targetClass="ru.karasevm.privatednstoggle.ShortcutHandlerActivity"
             android:data="privatednstoggle://switch_mode"/>
     </shortcut>
@@ -29,7 +29,7 @@
         android:shortcutShortLabel="@string/shortcut_turn_on">
         <intent
             android:action="ru.karasevm.privatednstoggle.action.SHORTCUT"
-            android:targetPackage="ru.karasevm.privatednstoggle"
+            android:targetPackage="com.vorsk.privatednstoggle"
             android:targetClass="ru.karasevm.privatednstoggle.ShortcutHandlerActivity"
             android:data="privatednstoggle://turn_on"/>
     </shortcut>
@@ -40,7 +40,7 @@
         android:shortcutShortLabel="@string/shortcut_turn_off">
         <intent
             android:action="ru.karasevm.privatednstoggle.action.SHORTCUT"
-            android:targetPackage="ru.karasevm.privatednstoggle"
+            android:targetPackage="com.vorsk.privatednstoggle"
             android:targetClass="ru.karasevm.privatednstoggle.ShortcutHandlerActivity"
             android:data="privatednstoggle://turn_off"/>
     </shortcut>

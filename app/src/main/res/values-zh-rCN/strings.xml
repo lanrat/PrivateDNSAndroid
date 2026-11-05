@@ -55,7 +55,6 @@
     <string name="shortcut_switch_mode">切换模式</string>
     <string name="open_source_licenses">开放源代码许可</string>
     <string name="permission_shizuku_url">https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api&amp;hl=zh-CN</string>
-    <string name="permission_manual_url">https://karasevm.github.io/PrivateDNSAndroid/</string>
     <string name="permission_shizuku_text">Shizuku</string>
     <string name="permission_dialog_title">需要权限</string>
     <string name="permission_intro">要更改系统私人 DNS 设置，需要您手动授予 WRITE_SECURE_SETTINGS 权限。</string>

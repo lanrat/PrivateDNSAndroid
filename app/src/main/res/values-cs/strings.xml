@@ -27,7 +27,6 @@
     <string name="permission_shizuku_text">Shizuku</string>
     <string name="permission_shizuku_url">https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api</string>
     <string name="permission_how_title">Jak udělit</string>
-    <string name="permission_manual_url">https://karasevm.github.io/PrivateDNSAndroid/</string>
     <string name="menu_privacy_policy">Zásady ochrany osobních údajů</string>
     <string name="select_server">Vybrat server</string>
     <string name="done">Hotovo</string>

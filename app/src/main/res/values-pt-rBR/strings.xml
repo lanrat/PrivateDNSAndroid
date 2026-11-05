@@ -64,5 +64,4 @@
     <string name="permission_how_details">Você pode conceder a permissão de duas formas:</string>
     <string name="permission_how_2">Use o adb para conceder a permissão manualmente, seguindo as instruções em %1$s</string>
     <string name="permission_shizuku_url">https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api</string>
-    <string name="permission_manual_url">https://karasevm.github.io/PrivateDNSAndroid/</string>
 </resources>

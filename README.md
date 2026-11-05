@@ -1,6 +1,5 @@
-[![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/karasevm/PrivateDNSAndroid/total)](https://github.com/karasevm/PrivateDNSAndroid/releases/latest)
-[![GitHub Release](https://img.shields.io/github/v/release/karasevm/PrivateDNSAndroid)](https://github.com/karasevm/PrivateDNSAndroid/releases/latest)
-[![IzzyOnDroid](https://img.shields.io/endpoint?url=https://apt.izzysoft.de/fdroid/api/v1/shield/ru.karasevm.privatednstoggle&label=IzzyOnDroid)](https://apt.izzysoft.de/fdroid/index/apk/ru.karasevm.privatednstoggle)
+[![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/lanrat/PrivateDNSAndroid/total)](https://github.com/lanrat/PrivateDNSAndroid/releases/latest)
+[![GitHub Release](https://img.shields.io/github/v/release/lanrat/PrivateDNSAndroid)](https://github.com/lanrat/PrivateDNSAndroid/releases/latest)
 [![Translation status](https://hosted.weblate.org/widget/privatednsandroid/private-dns-quick-toggle/svg-badge.svg)](https://hosted.weblate.org/engage/privatednsandroid/)
 
 # Private DNS Quick Toggle
@@ -11,14 +10,8 @@ a single tap.
 
 ## Installation
 
-### IzzyOnDroid (Recommended, will enable auto-updates on Android 12+)
-
-1. Install an F-droid client such as [Droidify](https://droidify.eu.org/download) or the [official F-Droid client](https://f-droid.org/)
-2. Verify that [IzzyOnDroid repo](https://apt.izzysoft.de/fdroid/repo?fingerprint=3BF0D6ABFEAE2F401707B6D966BE743BF0EEE49C2561B9BA39073711F628937A) is added and enabled
-3. Search for the full app name "Private DNS Quick Toggle" and install it
-
 ### GitHub Releases
-Get the latest apk on the [releases page](https://github.com/karasevm/PrivateDNSAndroid/releases/latest) 
+Get the latest apk on the [releases page](https://github.com/lanrat/PrivateDNSAndroid/releases/latest) 
 
 ## Activation
 To change the system DNS options the app requires `android.permission.WRITE_SECURE_SETTINGS` permission. There are multiple ways to provide it.
@@ -37,7 +30,7 @@ For the app to work properly you'll need to provide it permissions via ADB:
 5. Run this command in the terminal
 
 ```
-./adb shell pm grant ru.karasevm.privatednstoggle android.permission.WRITE_SECURE_SETTINGS
+./adb shell pm grant com.vorsk.privatednstoggle android.permission.WRITE_SECURE_SETTINGS
 ```
 
 6. That's it, you should have the app installed.
@@ -60,14 +53,14 @@ Long-press the app icon (or add a shortcut from your launcher's widget/shortcut 
 
 Other apps, such as Tasker or MacroDroid, can trigger the same actions **only after you enable "Allow other apps to change Private DNS" in the app's Options**. This is off by default so that no other installed app can silently turn off your Private DNS. Once enabled, start this activity:
 
-- Package: `ru.karasevm.privatednstoggle`
+- Package: `com.vorsk.privatednstoggle`
 - Class: `ru.karasevm.privatednstoggle.ExternalShortcutHandlerActivity`
 - Action: `ru.karasevm.privatednstoggle.action.SHORTCUT`
 - Data: `privatednstoggle://do_cycle`, `privatednstoggle://switch_mode`, `privatednstoggle://turn_on` or `privatednstoggle://turn_off`
 
-Debug builds use the package `ru.karasevm.privatednstoggle.dev` (the class name stays the same). For example, with adb:
+Debug builds use the package `com.vorsk.privatednstoggle.dev` (the class name stays the same). For example, with adb:
 ```
-./adb shell am start -n ru.karasevm.privatednstoggle/.ExternalShortcutHandlerActivity -a ru.karasevm.privatednstoggle.action.SHORTCUT -d privatednstoggle://turn_off
+./adb shell am start -n com.vorsk.privatednstoggle/ru.karasevm.privatednstoggle.ExternalShortcutHandlerActivity -a ru.karasevm.privatednstoggle.action.SHORTCUT -d privatednstoggle://turn_off
 ```
 
 ## Contributing

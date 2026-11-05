@@ -63,6 +63,5 @@
     <string name="permission_shizuku_text">Shizuku</string>
     <string name="permission_shizuku_url">https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api</string>
     <string name="permission_manual_text">instructions</string>
-    <string name="permission_manual_url">https://karasevm.github.io/PrivateDNSAndroid/</string>
     <string name="permission_intro">Pour modifier les paramètres DNS privés du système, vous devez accorder manuellement l\'autorisation WRITE_SECURE_SETTINGS.</string>
 </resources>

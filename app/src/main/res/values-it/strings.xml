@@ -64,5 +64,4 @@
     <string name="shortcut_do_cycle">Server/modo successivo</string>
     <string name="a11y_drag_handle">Maniglia di trascinamento</string>
     <string name="permission_shizuku_url">https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api</string>
-    <string name="permission_manual_url">https://karasevm.github.io/PrivateDNSAndroid/</string>
 </resources>

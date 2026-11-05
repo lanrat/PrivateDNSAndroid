@@ -20,7 +20,9 @@ extensions.configure<ApplicationExtension>  {
         generateLocaleConfig = true
     }
     defaultConfig {
-        applicationId = "ru.karasevm.privatednstoggle"
+        // Differs from upstream (ru.karasevm.privatednstoggle) so both can be installed. The
+        // namespace, and so the class names, stay the same to keep merging from upstream easy.
+        applicationId = "com.vorsk.privatednstoggle"
         versionCode = 20
         versionName = "1.12.0"
 
