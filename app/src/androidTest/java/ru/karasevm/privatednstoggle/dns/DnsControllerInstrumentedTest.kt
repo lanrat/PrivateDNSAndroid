@@ -103,12 +103,16 @@ class DnsControllerInstrumentedTest {
         Device.setPrivateDns("off", "dns.google")
         scheduler.schedule(PendingSwitchBack(System.currentTimeMillis() - 1, "one.one.one.one"))
 
-        // What the alarm delivers
+        // What the alarm delivers. On the foreground queue: on older Android versions the
+        // background one can be held up for a while by other apps' receivers, e.g. of the
+        // package broadcasts from installing the app just before the tests.
         Device.context.sendBroadcast(
-            Intent(Device.context, AutoRevertReceiver::class.java).setAction(AutoRevertReceiver.ACTION_REVERT)
+            Intent(Device.context, AutoRevertReceiver::class.java)
+                .setAction(AutoRevertReceiver.ACTION_REVERT)
+                .addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
         )
 
-        assertTrue(Device.waitUntil { Device.privateDnsMode() == "hostname" })
+        assertTrue(Device.waitUntil(30_000) { Device.privateDnsMode() == "hostname" })
         assertEquals("one.one.one.one", Device.privateDnsSpecifier())
         assertNull(scheduler.pending())
     }
