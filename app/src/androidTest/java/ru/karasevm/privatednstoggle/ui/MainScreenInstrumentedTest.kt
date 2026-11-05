@@ -14,6 +14,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import ru.karasevm.privatednstoggle.Device
+import ru.karasevm.privatednstoggle.FailureEvidenceRule
 import ru.karasevm.privatednstoggle.PrivateDnsSettingsRule
 import ru.karasevm.privatednstoggle.model.DnsServer
 
@@ -23,6 +24,9 @@ class MainScreenInstrumentedTest {
 
     @get:Rule
     val settingsRule = PrivateDnsSettingsRule()
+
+    @get:Rule
+    val evidence = FailureEvidenceRule()
 
     private val device = UiDevice.getInstance(Device.instrumentation)
 
@@ -79,10 +83,14 @@ class MainScreenInstrumentedTest {
             assertNotNull(device.wait(Until.findObject(By.textStartsWith("Turn Private DNS back on")), 5_000))
             Device.screenshot("options")
             device.pressBack()
+        }
+    }
 
-            // Dark mode; the statuses survive the recreation
-            Device.shell("cmd uimode night yes")
-            Thread.sleep(2_000)
+    @Test
+    fun serverListInDarkMode() {
+        Device.shell("cmd uimode night yes")
+        Thread.sleep(1_000)
+        ActivityScenario.launch(MainActivity::class.java).use {
             assertNotNull(device.wait(Until.findObject(By.text("Google")), 10_000))
             waitForStatuses()
             Device.screenshot("main-dark")

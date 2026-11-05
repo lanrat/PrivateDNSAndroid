@@ -6,6 +6,8 @@ import android.os.ParcelFileDescriptor
 import android.provider.Settings
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.rules.ExternalResource
+import org.junit.rules.TestWatcher
+import org.junit.runner.Description
 import ru.karasevm.privatednstoggle.data.database.DnsServerRoomDatabase
 import ru.karasevm.privatednstoggle.model.DnsServer
 
@@ -63,6 +65,22 @@ object Device {
     }
 
     const val SCREENSHOTS = "/data/local/tmp/screenshots"
+}
+
+/**
+ * On a failing test, saves a screenshot and the UI hierarchy (collected by the emulator
+ * workflow) and prints the visible text, so the CI log shows what was on screen.
+ */
+class FailureEvidenceRule : TestWatcher() {
+    override fun failed(e: Throwable?, description: Description) {
+        val name = "failed-${description.methodName}"
+        Device.screenshot(name)
+        Device.shell("uiautomator dump ${Device.SCREENSHOTS}/api${Build.VERSION.SDK_INT}-$name.xml")
+        val texts = Device.shell("cat ${Device.SCREENSHOTS}/api${Build.VERSION.SDK_INT}-$name.xml")
+            .split("text=\"", "content-desc=\"").drop(1).map { it.substringBefore('"') }.filter { it.isNotBlank() }
+        System.err.println("On screen when ${description.methodName} failed: $texts")
+        android.util.Log.e("FailureEvidence", "On screen when ${description.methodName} failed: $texts")
+    }
 }
 
 /** Restores the system Private DNS setting after each test */

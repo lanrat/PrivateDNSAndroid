@@ -21,6 +21,15 @@ class TileInstrumentedTest {
     @get:Rule
     val settingsRule = PrivateDnsSettingsRule()
 
+    @get:Rule
+    val evidence = FailureEvidenceRule()
+
+    private val commandOutput = StringBuilder()
+
+    private fun statusbar(command: String) {
+        commandOutput.append("$ cmd statusbar $command\n").append(Device.shell("cmd statusbar $command"))
+    }
+
     private val tile = "${Device.packageName}/ru.karasevm.privatednstoggle.service.DnsTileService"
 
     @Before
@@ -35,7 +44,13 @@ class TileInstrumentedTest {
         Device.setPrivateDns("off", null)
         Device.shell("input keyevent KEYCODE_WAKEUP")
         Device.shell("wm dismiss-keyguard")
-        Device.shell("cmd statusbar add-tile $tile")
+        statusbar("add-tile $tile")
+        // SystemUI binds a new tile when the panel shows it; clicking right away may do nothing
+        Thread.sleep(2_000)
+        statusbar("expand-settings")
+        Thread.sleep(2_000)
+        statusbar("collapse")
+        Thread.sleep(1_000)
     }
 
     @After
@@ -43,16 +58,19 @@ class TileInstrumentedTest {
         if (Build.VERSION.SDK_INT >= 33) Device.shell("cmd statusbar remove-tile $tile")
     }
 
+    private fun clickAndWaitFor(description: String, condition: () -> Boolean) {
+        statusbar("click-tile $tile")
+        assertTrue(
+            "$description; mode=${Device.privateDnsMode()} specifier=${Device.privateDnsSpecifier()}\n$commandOutput",
+            Device.waitUntil(15_000, condition)
+        )
+    }
+
     @Test
     fun tappingTheTileCyclesServers() {
-        Device.shell("cmd statusbar click-tile $tile")
-        assertTrue(Device.waitUntil { Device.privateDnsMode() == "hostname" })
+        clickAndWaitFor("first server") { Device.privateDnsMode() == "hostname" }
         assertEquals("dns.google", Device.privateDnsSpecifier())
-
-        Device.shell("cmd statusbar click-tile $tile")
-        assertTrue(Device.waitUntil { Device.privateDnsSpecifier() == "one.one.one.one" })
-
-        Device.shell("cmd statusbar click-tile $tile")
-        assertTrue(Device.waitUntil { Device.privateDnsMode() == "off" })
+        clickAndWaitFor("second server") { Device.privateDnsSpecifier() == "one.one.one.one" }
+        clickAndWaitFor("off") { Device.privateDnsMode() == "off" }
     }
 }
