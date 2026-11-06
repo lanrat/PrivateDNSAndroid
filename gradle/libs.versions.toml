@@ -12,10 +12,8 @@ androidx-fragment = "1.9.1"
 androidx-lifecycle = "2.11.0"
 androidx-recyclerview = "1.4.0"
 androidx-room = "2.8.5"
-compose-bom = "2026.09.00"
 material = "1.14.0"
 
-guava = "33.8.0-android"
 hiddenapibypass = "6.2"
 hidden-stub = "4.4.0"
 kotlinx-coroutines = "1.11.0"
@@ -28,13 +26,9 @@ androidx-test-junit = "1.3.0"
 androidx-test-uiautomator = "2.4.1"
 
 [libraries]
-aboutlibraries-compose-m3 = { module = "com.mikepenz:aboutlibraries-compose-m3", version.ref = "aboutlibraries" }
 aboutlibraries-core = { module = "com.mikepenz:aboutlibraries-core", version.ref = "aboutlibraries" }
-androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activity" }
 androidx-activity-ktx = { module = "androidx.activity:activity-ktx", version.ref = "androidx-activity" }
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "androidx-appcompat" }
-androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "compose-bom" }
-androidx-compose-material3 = { module = "androidx.compose.material3:material3" }
 androidx-constraintlayout = { module = "androidx.constraintlayout:constraintlayout", version.ref = "androidx-constraintlayout" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidx-core" }
 androidx-fragment-ktx = { module = "androidx.fragment:fragment-ktx", version.ref = "androidx-fragment" }
@@ -43,7 +37,6 @@ androidx-lifecycle-viewmodel-ktx = { module = "androidx.lifecycle:lifecycle-view
 androidx-recyclerview = { module = "androidx.recyclerview:recyclerview", version.ref = "androidx-recyclerview" }
 androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "androidx-room" }
 androidx-room-ktx = { module = "androidx.room:room-ktx", version.ref = "androidx-room" }
-guava = { module = "com.google.guava:guava", version.ref = "guava" }
 hiddenapibypass = { module = "org.lsposed.hiddenapibypass:hiddenapibypass", version.ref = "hiddenapibypass" }
 hidden-stub = { module = "dev.rikka.hidden:stub", version.ref = "hidden-stub" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinx-coroutines" }
@@ -70,7 +63,6 @@ android-application = { id = "com.android.application", version.ref = "agp" }
 # AGP 9 compiles Kotlin itself; declaring the Kotlin plugin (apply false) pins the
 # Kotlin Gradle plugin version it uses so it stays in step with the plugins below.
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
-kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 room = { id = "androidx.room", version.ref = "androidx-room" }

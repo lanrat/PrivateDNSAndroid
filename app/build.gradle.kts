@@ -2,7 +2,6 @@ import com.android.build.api.dsl.ApplicationExtension
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.room)
@@ -63,7 +62,6 @@ extensions.configure<ApplicationExtension>  {
     buildFeatures {
         viewBinding = true
         buildConfig = true
-        compose = true
     }
     buildTypes {
         release {
@@ -108,6 +106,13 @@ room {
     schemaDirectory("$projectDir/schemas")
 }
 
+aboutLibraries {
+    library {
+        // Only compiled against (compileOnly), not part of the app
+        exclusionPatterns.add(Regex("""dev\.rikka\.hidden:.*""").toPattern())
+    }
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
@@ -116,7 +121,6 @@ dependencies {
     implementation(libs.androidx.fragment.ktx)
     implementation(libs.material)
     implementation(libs.androidx.constraintlayout)
-    implementation(libs.guava)
     implementation(libs.kotlinx.serialization.json)
     // Used directly; also keeps the instrumented tests on the same version (they run with the app's copy)
     implementation(libs.kotlinx.coroutines.android)
@@ -135,13 +139,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.lifecycle.livedata.ktx)
 
-    // Compose
-    implementation(platform(libs.androidx.compose.bom))
-    implementation(libs.androidx.compose.material3)
-    implementation(libs.androidx.activity.compose)
-
+    // Reads the list of libraries and licenses for the open-source licenses screen
     implementation(libs.aboutlibraries.core)
-    implementation(libs.aboutlibraries.compose.m3)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

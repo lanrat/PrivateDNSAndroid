@@ -81,7 +81,8 @@
         <activity
             android:name=".ui.AboutLibsActivity"
             android:excludeFromRecents="true"
-            android:exported="false">
+            android:exported="false"
+            android:theme="@style/Theme.MyApplication">
         </activity>
 
         <!-- Not exported: the system still delivers its own broadcasts (boot, package update)

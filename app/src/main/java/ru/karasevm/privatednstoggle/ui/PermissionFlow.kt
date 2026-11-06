@@ -6,7 +6,6 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.savedstate.SavedStateRegistry
@@ -18,7 +17,7 @@ import ru.karasevm.privatednstoggle.util.ShizukuUtil.grantPermissionWithShizuku
 /**
  * Gets the WRITE_SECURE_SETTINGS permission for [activity] whenever it resumes without it:
  * through Shizuku when it runs, otherwise (or when that fails) by showing
- * [PermissionExplanationDialog] with the manual options. Dismisses the dialog once the
+ * [showPermissionExplanationDialog] with the manual options. Dismisses the dialog once the
  * permission is granted, e.g. with adb while the app was in the background.
  *
  * Create it in the activity's onCreate, after super.onCreate; it follows the activity's
@@ -120,21 +119,7 @@ class PermissionFlow(private val activity: AppCompatActivity) :
         // onResume runs again after returning from the browser, don't stack dialogs
         if (dialog?.isShowing == true) return
 
-        val view = ComposeView(activity).apply {
-            setContent {
-                AppTheme {
-                    PermissionExplanationDialog(
-                        onDismiss = { dialog?.dismiss() },
-                        onConfirm = { dialog?.dismiss() }
-                    )
-                }
-            }
-        }
-        dialog = AlertDialog.Builder(activity)
-            .setView(view)
-            .setCancelable(false)
-            .show()
-            .apply { window?.setBackgroundDrawableResource(android.R.color.transparent) }
+        dialog = showPermissionExplanationDialog(activity)
     }
 
     private companion object {

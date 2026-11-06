@@ -121,6 +121,35 @@ class MainScreenInstrumentedTest {
     }
 
     @Test
+    fun openSourceLicenses() {
+        ActivityScenario.launch(AboutLibsActivity::class.java).use {
+            // Sorted by name, so this one is at the top
+            val first = device.wait(Until.findObject(By.text("AboutLibraries Core Library")), 10_000)
+            assertNotNull(first)
+            assertNotNull(device.findObject(By.textContains("Apache License 2.0")))
+            Device.screenshot("licenses")
+
+            first.click()
+            assertNotNull(device.wait(Until.findObject(By.textStartsWith("Apache License")), 5_000))
+            Device.screenshot("license-text")
+            device.findObject(By.text("OK")).click()
+        }
+    }
+
+    @Test
+    fun permissionExplanation() {
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            // Shown when the permission is missing; the tests have it, so show it directly
+            scenario.onActivity { showPermissionExplanationDialog(it) }
+            assertNotNull(device.wait(Until.findObject(By.text("Permission Required")), 5_000))
+            assertNotNull(device.findObject(By.textContains("Shizuku")))
+            Device.screenshot("permission-dialog")
+            device.findObject(By.text("OK")).click()
+            assertTrue(device.wait(Until.gone(By.text("Permission Required")), 5_000))
+        }
+    }
+
+    @Test
     fun serverListInDarkMode() {
         setAppNightMode(AppCompatDelegate.MODE_NIGHT_YES)
         ActivityScenario.launch(MainActivity::class.java).use {
